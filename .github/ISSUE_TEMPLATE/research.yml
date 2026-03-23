@@ -1,0 +1,65 @@
+name: "Research / Spike"
+description: Investigation, proof of concept, or design decision
+labels: ["type: research"]
+body:
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - "high — blocks implementation"
+        - "medium — informs upcoming phase"
+        - "low — future phase"
+      default: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Relevant Phase
+      options:
+        - "0 — bootstrap"
+        - "1 — document engine"
+        - "2 — MCP gateway + Redis"
+        - "3 — identity & trust"
+        - "4 — negotiation"
+        - "5 — P2P transport"
+        - "6 — evolution & learning"
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question / Problem
+      description: What decision or unknown are you trying to resolve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why does this matter? Which implementation depends on it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope & Time-box
+      description: What is in scope? Hard limit on time spent before making a decision.
+      placeholder: |
+        In scope: evaluate santhosh-tekuri/jsonschema/v6 vs qri-io/jsonschema for JSON Schema 2020-12 support.
+        Time-box: 2 hours. If unclear, default to santhosh-tekuri.
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected Outcome
+      description: What artifact should this produce? (ADR, code snippet, updated design doc, ...)
+      placeholder: |
+        - Decision recorded as a comment on this issue.
+        - Implementation approach documented in pkg/document/validator.go header comment.

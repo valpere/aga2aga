@@ -1,0 +1,106 @@
+name: "Task"
+description: Implementation work item — feature, chore, or refactor
+labels: ["type: task"]
+body:
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - feature
+        - chore
+        - test
+        - research
+        - docs
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - "critical — blocker"
+        - "high — current sprint"
+        - "medium — normal"
+        - "low — nice to have"
+      default: 2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options:
+        - "0 — bootstrap"
+        - "1 — document engine"
+        - "2 — MCP gateway + Redis"
+        - "3 — identity & trust"
+        - "4 — negotiation"
+        - "5 — P2P transport"
+        - "6 — evolution & learning"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      multiple: true
+      options:
+        - "document (pkg/document)"
+        - "protocol (pkg/protocol)"
+        - "transport (pkg/transport)"
+        - "identity (pkg/identity)"
+        - "negotiation (pkg/negotiation)"
+        - "gateway (internal/gateway)"
+        - "cli (cmd/aga)"
+        - "ci"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What & Why
+      description: What needs to be done and why. Include links to design docs if relevant.
+      placeholder: |
+        Implement `SplitFrontMatter` in `pkg/document/parser.go`.
+        Required by the document parser to separate the YAML control header from the Markdown body.
+        Reference: context/preparation/03-protocol.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Concrete, verifiable conditions for "done". Use a checklist.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ] Tests pass (`go test ./...`)
+        - [ ] `go vet ./...` clean
+    validations:
+      required: true
+
+  - type: textarea
+    id: impl_notes
+    attributes:
+      label: Implementation Notes
+      description: Key design decisions, gotchas, patterns to follow, or code sketches.
+      placeholder: |
+        - Use `strings.Index` to find the first `---`, then the second occurrence after offset 3.
+        - Edge cases: no front matter → return error; empty body → return empty string, no error.
+        - See `StringOrList` in types.go for the polymorphic YAML pattern.
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Issues that must be completed first, or that this unblocks.
+      placeholder: |
+        Blocked by: #1 (types.go)
+        Unblocks: #5 (validator), #6 (builder)
