@@ -39,9 +39,13 @@ GATEKEEPING  tech-lead →  architecture approval
 EXECUTION    /ship     →  TDD code → parallel review → PR → 4-round AI review → merge
 ```
 
-**Everything starts with an issue.** No code is written without a well-formed GitHub issue that has passed the architecture gate. This prevents wasted implementation work and keeps the history clean.
+**Everything starts with an issue.**
+No code is written without a well-formed GitHub issue that has passed the architecture gate.
+This prevents wasted implementation work and keeps the history clean.
 
-**Everything ends with `/fix-review`.** No PR merges without going through three diverse external AI models and a Claude Arbiter pass. This catches issues that slip through the author's blind spots.
+**Everything ends with `/fix-review`.**
+No PR merges without going through three diverse external AI models and a Claude Arbiter pass.
+This catches issues that slip through the author's blind spots.
 
 ---
 
@@ -118,13 +122,13 @@ From idea to merged PR:
         ↓
 4.  You (or /ship) pick the issue
         ↓
-5.  code-generator agent creates a branch, writes a failing test,
-    implements the minimum code to make it pass, refactors,
-    repeats per task in the plan
+5.  The parent session (Claude) implements using the go-tdd skill:
+    creates a branch, writes a failing test, implements minimum code
+    to make it pass, refactors, repeats per task in the plan
         ↓
 6.  Parallel review agents run (after implementation):
-      test-reviewer    → checks test quality, finds gaps
-      static-analysis  → go vet + golangci-lint, cosmetic fixes only
+      go-code-reviewer  → plan alignment, Go quality, protocol compliance, tests
+      static-analysis   → go vet + golangci-lint, cosmetic fixes only
       security-reviewer → crypto, YAML, protocol enforcement
         ↓
 7.  All findings applied, go test ./... && go vet ./... green
@@ -259,11 +263,11 @@ Example: issue #12 "add SplitFrontMatter function" → `feat/12-add-split-front-
        (if issue touches >1 component — skipped for trivial changes)
 4.  Invokes superpowers:writing-plans
        (decomposes into 2-5 minute TDD tasks with exact file paths)
-5.  Invokes code-generator
+5.  Invokes go-tdd skill (parent session implements directly)
        (implements each task: failing test → green → refactor → commit)
 6.  Runs in parallel:
-       test-reviewer    → finds test gaps, adds missing cases
-       static-analysis  → go vet + golangci-lint, cosmetic fixes
+       go-code-reviewer  → plan alignment, Go quality, protocol compliance, tests
+       static-analysis   → go vet + golangci-lint, cosmetic fixes
        security-reviewer → crypto/YAML/protocol audit
 7.  Applies all findings
 8.  go test ./... && go vet ./...  — must be green before continuing
@@ -311,7 +315,7 @@ Round 1 — DeepSeek v3.2 (OpenRouter)
   Output: JSON array of comments {file, line, layer, severity, body}
   Action: Fix all findings → commit → push
 
-Round 2 — Qwen3-Coder 480b (OpenRouter)
+Round 2 — Qwen3-Coder Next (OpenRouter)
   Input:  Delta diff (only Round 1's changes)
   Focus:  Nil safety, error handling, Go idioms
   Action: Fix all findings → commit → push
@@ -438,49 +442,29 @@ Agents are autonomous subprocesses invoked by commands. You don't invoke them di
 
 ---
 
-### code-generator
+### go-code-reviewer
 
-**Invoked by:** `/ship`
+**Invoked by:** `/ship` (after implementation, in parallel with static-analysis and security-reviewer)
 
-**What it does:** Implements the issue using strict TDD.
+**What it does:** Reviews implementation quality, protocol compliance, and test coverage.
 
-**The loop it follows per task:**
+**Review sections:**
+1. Plan alignment — did implementation match all acceptance criteria?
+2. Go code quality — nil safety, error wrapping with `%w`, goroutine safety, idiomatic patterns
+3. Architecture / SOLID — `pkg/` never imports `internal/` or `cmd/`; interfaces at consumer side
+4. Protocol compliance — DO_NOT_TOUCH patterns respected; lifecycle transitions valid; genome fields immutable
+5. Documentation — exported identifiers have godoc; non-obvious logic explained
+6. Tests — table-driven with named cases; error paths covered; all lifecycle transitions tested (valid and invalid); no live infrastructure required
 
-```
-1. Write failing test (table-driven, with t.Run subtests)
-2. Run: go test -run TestName ./pkg/... — must show FAIL
-3. Write minimum code to pass
-4. Run: go test -run TestName ./pkg/... — must show PASS
-5. Refactor (tests stay green the whole time)
-6. git add -p && git commit
-```
+**Verdict:** PASS / PASS WITH SUGGESTIONS / NEEDS WORK
 
-**Never writes production code before a failing test.** If this constraint would break, it stops and surfaces the issue.
-
-**After implementation:** Launches test-reviewer, static-analysis, security-reviewer.
-
----
-
-### test-reviewer
-
-**Invoked by:** code-generator (after implementation)
-
-**What it does:** Reviews test quality and adds missing cases.
-
-**Checks:**
-- All tests are table-driven with named cases
-- Error paths are tested (not just happy path)
-- All valid lifecycle transitions have a test
-- All invalid transitions have a test (expect rejection)
-- No tests require live infrastructure (Redis, MCP server)
-
-**Output:** Additional test cases added to existing `_test.go` files.
+NEEDS WORK blocks `/ship` until findings are resolved.
 
 ---
 
 ### static-analysis
 
-**Invoked by:** code-generator (after implementation), in parallel with test-reviewer
+**Invoked by:** `/ship` (after implementation, in parallel with go-code-reviewer)
 
 **What it does:** Makes `go vet` and `golangci-lint` pass.
 
@@ -499,7 +483,7 @@ Agents are autonomous subprocesses invoked by commands. You don't invoke them di
 
 ### security-reviewer
 
-**Invoked by:** code-generator (after implementation), in parallel
+**Invoked by:** `/ship` (after implementation, in parallel with go-code-reviewer)
 
 **What it does:** Audits for security issues specific to a crypto-identity protocol library.
 
@@ -520,9 +504,7 @@ Agents are autonomous subprocesses invoked by commands. You don't invoke them di
 
 ### go-code-reviewer
 
-**Invoked by:** `/fix-review` (Round 4 Arbiter uses Claude directly)
-
-**What it does:** Go + protocol compliance review. See [The 4-Round Review](#the-4-round-review) for full details.
+See the expanded section above — this entry is the same agent, listed here for reference in the agent index.
 
 ---
 

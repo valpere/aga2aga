@@ -1,0 +1,178 @@
+version: "1.0"
+
+# aga2aga implementation phases
+# Each phase produces independently compilable, go test ./...-passing software.
+# Phases 0-1 target M1: First Document (2026-04-06).
+
+phases:
+  phase-0-bootstrap:
+    description: "Project foundation — Go module, CI, Docker, Makefile"
+    milestone: "M1: First Document"
+    due: "2026-04-06"
+    depends_on: []
+    issues:
+      - "#12: go mod init + directory structure"
+      - "#13: GitHub Actions CI pipeline"
+      - "#14: Dockerfile + Makefile"
+    skills:
+      - go-writing-plans
+      - go-tdd
+    agents:
+      - go-code-reviewer
+    commands:
+      - go mod init github.com/valpere/aga2aga
+      - go build ./...
+      - go test ./...
+      - go vet ./...
+    components:
+      - go.mod
+      - .github/workflows/
+      - Dockerfile
+      - Makefile
+
+  phase-1-document:
+    description: "Skills Document engine — parse, validate, create all message types"
+    milestone: "M1: First Document"
+    due: "2026-04-06"
+    depends_on:
+      - phase: phase-0-bootstrap
+        strength: required
+    issues:
+      - "#15: pkg/protocol/ constants + registry"
+      - "#16: pkg/document/types*.go"
+      - "#17: pkg/document/parser.go + fixtures"
+      - "#18: pkg/document/lifecycle.go"
+      - "#19: pkg/document/validator.go + schema"
+      - "#20: pkg/document/builder.go"
+      - "#21: cmd/aga/ CLI"
+      - "#22: transport/identity/negotiation stubs"
+    skills:
+      - aga2aga-protocol
+      - go-tdd
+      - go-writing-plans
+    agents:
+      - go-code-reviewer
+    commands:
+      - go test ./pkg/document/...
+      - go test ./pkg/protocol/...
+      - go run ./cmd/aga validate tests/testdata/valid_genome.md
+    components:
+      - pkg/protocol/
+      - pkg/document/
+      - pkg/transport/      # stub interface only
+      - pkg/identity/       # stub interface only
+      - pkg/negotiation/    # stub types only
+      - cmd/aga/
+      - tests/testdata/
+
+  phase-2-gateway:
+    description: "MCP Gateway + Redis Streams transport — agents connect via MCP stdio/HTTP"
+    milestone: "M2: First Task"
+    due: "2026-04-27"
+    depends_on:
+      - phase: phase-1-document
+        strength: required
+    skills:
+      - aga2aga-protocol
+      - go-tdd
+      - mcp-server-dev:build-mcp-server
+    agents:
+      - go-code-reviewer
+    commands:
+      - go run ./cmd/gateway
+      - go test ./internal/gateway/...
+      - go test ./pkg/transport/...
+    components:
+      - internal/gateway/
+      - pkg/transport/      # Redis Streams implementation
+      - cmd/gateway/
+
+  phase-3-identity:
+    description: "Ed25519 cryptographic identity and trust — signed documents, key management"
+    milestone: "M3: Trusted Agents"
+    due: "2026-05-18"
+    depends_on:
+      - phase: phase-2-gateway
+        strength: required
+    skills:
+      - aga2aga-protocol
+      - go-tdd
+      - secure-code-guardian
+    agents:
+      - go-code-reviewer
+    notes: "Key material MUST never appear in logs. Ed25519 only."
+    components:
+      - pkg/identity/       # Ed25519 implementation
+
+  phase-4-negotiation:
+    description: "8-step negotiation protocol engine"
+    milestone: "M4: First Negotiation"
+    due: "2026-06-08"
+    depends_on:
+      - phase: phase-3-identity
+        strength: required
+    skills:
+      - aga2aga-protocol
+      - go-tdd
+    agents:
+      - go-code-reviewer
+    components:
+      - pkg/negotiation/    # full implementation
+
+  phase-5-p2p:
+    description: "Gossip P2P transport — fully offline, no Redis dependency"
+    milestone: "M5: No Redis"
+    due: "2026-07-20"
+    depends_on:
+      - phase: phase-4-negotiation
+        strength: required
+    skills:
+      - go-tdd
+    agents:
+      - go-code-reviewer
+    notes: "Transport abstraction allows swapping Redis → Gossip without API changes."
+    components:
+      - pkg/transport/      # Gossip P2P implementation
+
+  phase-6-evolution:
+    description: "Agent evolution — genome mutation, fitness scoring, lifecycle governance"
+    milestone: "M6: First Spawn"
+    due: "2026-09-14"
+    depends_on:
+      - phase: phase-5-p2p
+        strength: required
+    skills:
+      - aga2aga-protocol
+      - go-tdd
+    agents:
+      - go-code-reviewer
+    notes: "ZK identity layers are research-grade — deferred beyond Phase 6."
+    components:
+      - pkg/evolution/      # new package Phase 6
+
+utilities:
+  - name: session-context
+    description: "Injects phase/milestone/issue context at session start"
+    hook: SessionStart
+    file: .claude/hooks/session-start
+    invocation: automatic
+
+  - name: aga2aga-protocol
+    description: "Protocol reference — message types, lifecycle, builder/validator API"
+    type: skill
+    invocation: on-demand
+
+  - name: go-code-reviewer
+    description: "Post-step review — Go idioms + protocol compliance"
+    type: agent
+    invocation: after each build step
+
+  - name: go-tdd
+    description: "Red-Green-Refactor cycle for Go"
+    type: skill
+    invocation: before any production code
+
+  - name: go-writing-plans
+    description: "Implementation plan writer for Go issues"
+    type: skill
+    invocation: before touching code on multi-step issues

@@ -9,10 +9,10 @@ Idea / bug / design doc
          ↓
     tech-lead         → architecture gate (approve / reject / revise)
          ↓
-    /ship             → code-generator agent (TDD: failing test → impl → green)
+    /ship             → parent session implements using go-tdd skill (TDD: failing test → impl → green)
          ↓ (parallel)
     ┌──────────────────────────────────────┐
-    │  test-reviewer   static-analysis     │
+    │  go-code-reviewer   static-analysis  │
     │  security-reviewer                   │
     └──────────────────────────────────────┘
          ↓ (fixes applied, all green)
@@ -55,8 +55,8 @@ If no issue number is given, picks the highest-priority open issue without `stat
 **Process:**
 1. Add `status: in-progress` label to the issue
 2. Create feature branch: `feat/<number>-<slug>` or `fix/<number>-<slug>`
-3. Run **code-generator** agent (strict TDD)
-4. Launch parallel review agents: test-reviewer, static-analysis, security-reviewer
+3. Implement using **go-tdd** skill (strict TDD — the parent session is the implementer)
+4. Launch parallel review agents: go-code-reviewer, static-analysis, security-reviewer
 5. Apply all findings, verify `go test ./... && go vet ./...` green
 6. Create PR — title links to issue, body contains `Closes #N`
 7. Run `/fix-review` (4-round external + Arbiter)
@@ -110,35 +110,19 @@ Architecture gate. Must approve before code-generator runs.
 
 ---
 
-### `code-generator`
+### `go-code-reviewer`
 
-Primary implementation agent. Strictly TDD.
-
-**Responsibilities:**
-- Write failing test first, verify RED, implement minimum code, verify GREEN, refactor, commit
-- Follow Go idioms: table-driven tests, `t.Run` subtests, `t.Errorf` (not panic)
-- Respect package structure (see CLAUDE.md)
-- After implementation: launch parallel review agents
-- Create PR after all review findings are resolved
-
-**Constraints:**
-- Never write production code before a failing test exists
-- Never use `panic` in library code (`pkg/`)
-- All errors wrapped with `%w`
-- Interfaces defined at the consumer side
-
----
-
-### `test-reviewer`
-
-Reviews and supplements tests generated alongside implementation.
+Go code review agent. Reviews implementation quality, protocol compliance, and test coverage.
 
 **Responsibilities:**
-- Table-driven tests (`[]struct{ name, input, want }`)
-- Subtests with `t.Run(tc.name, func(t *testing.T) {...})`
-- Edge cases: empty input, nil, boundary values, invalid state transitions
-- No test that requires a live Redis or MCP server (use `Transport` interface stub)
-- Verify lifecycle state machine tests cover all valid *and* invalid transitions
+- Plan alignment: did the implementation match the issue acceptance criteria?
+- Go code quality: nil safety, error wrapping, goroutine leaks, table-driven tests
+- Architecture / SOLID: no `pkg/` → `internal/` imports, transport abstraction respected
+- Protocol compliance: DO_NOT_TOUCH patterns, immutable genome fields, lifecycle transitions
+- Documentation: exported identifiers have godoc, non-obvious logic is commented
+- Test coverage: all error paths tested, lifecycle transitions covered (valid and invalid)
+
+**Verdict:** PASS / PASS WITH SUGGESTIONS / NEEDS WORK
 
 ---
 
@@ -180,7 +164,7 @@ Adapted from ClubTasker `daily-clean-spark/.claude/skills/fix-review/`.
 | Round | Model | Provider | Diff scope | Focus |
 |-------|-------|----------|------------|-------|
 | 1 | `deepseek/deepseek-v3.2` | OpenRouter | Full PR diff | Architecture, layer violations, logic errors |
-| 2 | `qwen/qwen3-coder-480b` | OpenRouter | Delta (Round 1 fixes) | Nil safety, error handling, Go idioms |
+| 2 | `qwen/qwen3-coder-next` | OpenRouter | Delta (Round 1 fixes) | Nil safety, error handling, Go idioms |
 | 3 | `mistralai/codestral-latest` | OpenRouter | Delta (Round 2 fixes) | Security, edge cases, protocol compliance |
 | 4 | Claude (Arbiter) | — | Full PR diff | Confirm/Escalate/Dismiss/Defer + independent scan |
 
@@ -249,6 +233,8 @@ Patterns that must never be modified without explicit justification. Checked by 
 | `ValidTransition()` signature | `pkg/document/lifecycle.go` | Consumed by validator and CLI; changing breaks callers |
 | JSON Schema `$defs` names | `pkg/document/schema.yaml` | Used for `oneOf` dispatch; renaming breaks validation |
 | `ProtocolVersion = "v1"` | `pkg/protocol/types.go` | Wire protocol constant |
+| `constraints.hard` / `identity` fields | `pkg/document/types_genome.go` | Spec §5.6 — proposals that weaken hard constraints MUST be rejected |
+| `// DO_NOT_TOUCH` comment blocks | any file | Explicitly protected sections — checked by static-analysis and security-reviewer |
 
 This list grows as the codebase matures. Add entries here when a pattern is established and must not drift.
 
@@ -260,7 +246,7 @@ This list grows as the codebase matures. Add entries here when a pattern is esta
 Sequential invocation. `/ship` runs agents one at a time.
 
 ### Phase 2
-Parallel review batch: test-reviewer, static-analysis, security-reviewer launched as concurrent subagents.
+Parallel review batch: go-code-reviewer, static-analysis, security-reviewer launched as concurrent subagents.
 
 ### Phase 3+
 Multi-issue parallelism via git worktrees. Multiple `/ship` invocations on separate issues simultaneously.
