@@ -71,6 +71,75 @@ func TestStringOrList_UnmarshalYAML_Error(t *testing.T) {
 	}
 }
 
+func TestStringOrList_NullBecomesEmpty(t *testing.T) {
+	t.Parallel()
+
+	// YAML null (~) must not silently route to recipient "".
+	// It must produce an empty slice.
+	input := "to: ~"
+
+	var dest struct {
+		To document.StringOrList `yaml:"to"`
+	}
+
+	if err := yaml.Unmarshal([]byte(input), &dest); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+
+	if len(dest.To) != 0 {
+		t.Errorf("YAML null should produce empty StringOrList, got %v", dest.To)
+	}
+}
+
+func TestAs_StripsEnvelopeKeys(t *testing.T) {
+	t.Parallel()
+
+	type Inner struct {
+		From    string `yaml:"from"`
+		AgentID string `yaml:"agent_id"`
+	}
+
+	// Simulate Extra that somehow contains an envelope key alongside a payload key.
+	// As[T] must strip envelope keys so they cannot bleed into typed structs.
+	doc := &document.Document{
+		Envelope: document.Envelope{
+			Type:         "",
+			Version:      "",
+			ID:           "",
+			From:         "legit-sender",
+			To:           nil,
+			CreatedAt:    "",
+			InReplyTo:    "",
+			ThreadID:     "",
+			ExecID:       "",
+			TTL:          "",
+			Status:       "",
+			Signature:    "",
+			SigningKeyID: "",
+		},
+		Extra: map[string]any{
+			"from":     "injected",
+			"agent_id": "agent-42",
+		},
+		Body: "",
+		Raw:  nil,
+	}
+
+	got, err := document.As[Inner](doc)
+	if err != nil {
+		t.Fatalf("As[Inner]() error = %v", err)
+	}
+
+	// Envelope key "from" in Extra must NOT bleed into the typed struct.
+	if got.From != "" {
+		t.Errorf("As[T] leaked envelope key into typed struct: From = %q, want empty", got.From)
+	}
+
+	if got.AgentID != "agent-42" {
+		t.Errorf("AgentID = %q, want agent-42", got.AgentID)
+	}
+}
+
 func TestAs_RoundTrip(t *testing.T) {
 	t.Parallel()
 
