@@ -134,7 +134,7 @@ type GenomePatch struct {
 	Capabilities  *Capabilities  `yaml:"capabilities,omitempty"`
 	Tools         *Tools         `yaml:"tools,omitempty"`
 	ModelPolicy *ModelPolicy `yaml:"model_policy,omitempty"`
-	// SECURITY: PromptPolicy.Style is attacker-controlled — see PromptPolicy.Style annotation.
+	// SECURITY: PromptPolicy.Style is attacker-controlled — see PromptPolicy.Style annotation (issue #35).
 	PromptPolicy  *PromptPolicy  `yaml:"prompt_policy,omitempty"`
 	RoutingPolicy *RoutingPolicy `yaml:"routing_policy,omitempty"`
 	MemoryPolicy  *MemoryPolicy  `yaml:"memory_policy,omitempty"`
