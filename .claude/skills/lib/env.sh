@@ -9,6 +9,12 @@
 load_env_key() {
   local key="$1"
 
+  # Reject key names that would make the grep pattern unsafe.
+  if [[ ! "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    echo "ERROR: Invalid key name '${key}' — must match [A-Za-z_][A-Za-z0-9_]*" >&2
+    return 1
+  fi
+
   # Already set in environment — nothing to do.
   if [[ -n "${!key}" ]]; then
     return 0

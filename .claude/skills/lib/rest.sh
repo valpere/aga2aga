@@ -26,6 +26,13 @@ chat() {
       ;;
     ollama)
       local base="${OLLAMA_BASE_URL:-http://localhost:11434}"
+      # Reject plain HTTP for non-loopback hosts to prevent exfiltration.
+      if [[ "$base" =~ ^http:// ]] && \
+         [[ ! "$base" =~ ^http://(localhost|127\.|::1) ]]; then
+        echo "ERROR: OLLAMA_BASE_URL uses plain HTTP for a non-loopback host." >&2
+        echo "       Use https:// or a localhost address." >&2
+        return 1
+      fi
       curl -s --fail-with-body \
         --connect-timeout 30 --max-time 120 \
         -X POST "${base}/api/chat" \
