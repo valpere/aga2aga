@@ -2,6 +2,7 @@ package document_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/valpere/aga2aga/pkg/document"
@@ -261,7 +262,7 @@ func TestValidateSemantic(t *testing.T) {
 				if tc.wantMsg != "" {
 					found := false
 					for _, e := range errs {
-						if contains(e.Message, tc.wantMsg) {
+						if strings.Contains(e.Message, tc.wantMsg) {
 							found = true
 							break
 						}
@@ -336,15 +337,3 @@ func TestValidationError_Error(t *testing.T) {
 	}
 }
 
-func contains(s, sub string) bool {
-	return len(sub) == 0 || len(s) >= len(sub) && (s == sub || len(s) > 0 && containsStr(s, sub))
-}
-
-func containsStr(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
-}

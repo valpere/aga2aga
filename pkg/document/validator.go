@@ -2,6 +2,7 @@ package document
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -166,16 +167,22 @@ func (v *Validator) ValidateSchema(doc *Document) []ValidationError {
 	}
 
 	// Compile the type-specific $def.
+	// NOTE: the internal refURL is not surfaced in errors to avoid leaking schema internals.
 	refURL := "aga2aga://schema#/$defs/" + meta.SchemaRef
 	defSchema, err := v.compiler.Compile(refURL)
 	if err != nil {
 		return []ValidationError{{
 			Layer:   LayerSchema,
-			Message: fmt.Sprintf("compile schema ref %q: %v", refURL, err),
+			Message: fmt.Sprintf("schema unavailable for type %q", string(doc.Type)),
 		}}
 	}
 
 	// Convert the full document to a JSON-typed value for validation.
+	// NOTE: doc.Extra (attacker-controlled) is included in the validation object because
+	// type-specific required fields legitimately live in Extra. The schema $defs do NOT
+	// use additionalProperties:false by design (forward-compat). The validation surface
+	// is intentionally the merged wire document, not the As[T] execution surface. Callers
+	// that require stricter field isolation should use As[T] after validation.
 	docVal, err := docToJSONValue(doc)
 	if err != nil {
 		return []ValidationError{{Layer: LayerSchema, Message: fmt.Sprintf("convert doc: %v", err)}}
@@ -188,6 +195,11 @@ func (v *Validator) ValidateSchema(doc *Document) []ValidationError {
 	return nil
 }
 
+// maxIntermediateBytes caps the intermediate YAML/JSON representations produced
+// during schema validation to prevent CWE-400 via nested-map expansion.
+// 4× MaxDocumentBytes provides a generous expansion budget while bounding allocations.
+const maxIntermediateBytes = 4 * MaxDocumentBytes
+
 // docToJSONValue converts a Document to a map[string]any with JSON-native types
 // (float64 for numbers, string, bool, []any, map[string]any) suitable for the
 // jsonschema library. The YAML→JSON round-trip normalises integer types.
@@ -195,6 +207,9 @@ func docToJSONValue(doc *Document) (any, error) {
 	yamlBytes, err := yaml.Marshal(doc)
 	if err != nil {
 		return nil, fmt.Errorf("marshal doc: %w", err)
+	}
+	if len(yamlBytes) > maxIntermediateBytes {
+		return nil, fmt.Errorf("docToJSONValue: intermediate YAML exceeds size limit (%d bytes)", maxIntermediateBytes)
 	}
 	var m any
 	if err := yaml.Unmarshal(yamlBytes, &m); err != nil {
@@ -218,9 +233,7 @@ func schemaErrToValidationErrors(err error) []ValidationError {
 		return nil
 	}
 	var ve *jsonschema.ValidationError
-	if asErr, ok := err.(*jsonschema.ValidationError); ok {
-		ve = asErr
-	} else {
+	if !errors.As(err, &ve) {
 		return []ValidationError{{Layer: LayerSchema, Message: err.Error()}}
 	}
 
@@ -287,8 +300,14 @@ func validateLifecycleTransition(doc *Document) []ValidationError {
 	// SECURITY: doc.From is unverified until Phase 3 Ed25519 signing — this is
 	// defence-in-depth today, becomes a security boundary in Phase 3 (issue #43).
 	if doc.Type == protocol.AgentPromotion {
-		targetAgent, _ := doc.Extra["target_agent"].(string)
-		if doc.From != "" && doc.From == targetAgent {
+		targetAgent, ok := doc.Extra["target_agent"].(string)
+		if !ok || targetAgent == "" {
+			errs = append(errs, ValidationError{
+				Layer:   LayerSemantic,
+				Field:   "target_agent",
+				Message: "target_agent is required for self-promotion check",
+			})
+		} else if doc.From != "" && doc.From == targetAgent {
 			errs = append(errs, ValidationError{
 				Layer:   LayerSemantic,
 				Field:   "from/target_agent",

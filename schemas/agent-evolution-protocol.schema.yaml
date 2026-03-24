@@ -18,6 +18,8 @@ $defs:
     type: string
     minLength: 1
 
+  # DO_NOT_TOUCH: lifecycleState enum is referenced by agentGenome, agentPromotion, agentRollback.
+  # Adding values is safe; removing or renaming breaks wire compatibility with lifecycle.go constants.
   lifecycleState:
     type: string
     enum:
