@@ -25,7 +25,8 @@ gofmt -w .           # format code
 - **Protocol:** Markdown + YAML Skills Documents
 - **Identity/Crypto:** Ed25519 signatures
 - **Schema validation:** JSON Schema 2020-12
-- **CI:** GitHub Actions / Docker
+- **CI:** GitHub Actions — golangci-lint **v2.11.4** (local machine has v1; do not use local lint to validate config)
+- **Container:** Docker (Phase 2+)
 
 ## Architecture
 
@@ -94,18 +95,39 @@ Fitness is a weighted score (quality 35%, safety 15%, reliability 20%, latency 1
 - Closed agents (Claude Code, Codex) are session-based — the gateway must proxy state for them between calls (e.g. `taskID → msgID` mapping)
 - ZK crypto layers are research-grade and not near-term
 
-### Planned Package Structure
+### Package Structure
 
 ```
 cmd/gateway/   MCP Gateway binary
 cmd/aga/       CLI tool
-pkg/document/  Skills Document parser, validator, builder
-pkg/protocol/  Message types and registry
+pkg/document/  Skills Document parser, validator, builder   ← Phase 1 in progress
+pkg/protocol/  Message types and registry                   ← DONE (issue #15)
 pkg/transport/ Transport abstraction (Redis, Gossip)
 pkg/identity/  Ed25519 identity and trust
 pkg/negotiation/ Negotiation protocol engine
 internal/gateway/ MCP Gateway implementation
 ```
+
+#### Implemented: pkg/protocol
+
+- 24 `MessageType` constants across 3 groups (agent evolution, task, negotiation)
+- `Registry` map — `TypeMeta` per type (required fields + schema ref)
+- `BaseEnvelopeFields`, `ProtocolVersion = "v1"` (DO_NOT_TOUCH)
+
+#### Implemented: pkg/document
+
+- `StringOrList` — scalar/sequence YAML type for `to:` field
+- `Envelope` — all 14 wire fields; `From` is unverified until Phase 3
+- `Document` — `Envelope` + `Extra map[string]any` + `Body` + `Raw`
+- `As[T]` — YAML round-trip to typed struct; strips all Envelope keys from `Extra` first (injection defence)
+- Typed structs for all 24 message types across 5 files (`types_task`, `types_genome`, `types_lifecycle`, `types_spawn`, `types_evaluation`)
+
+#### Security invariants (pkg/document)
+
+- `Envelope.From` is self-reported; authorization MUST NOT rely on it until Phase 3 (Ed25519)
+- `Document.Extra` is attacker-controlled; never use directly for auth, signing, or lifecycle decisions
+- `As[T]` strips the 13 Envelope yaml keys via `envelopeKeys` map before marshal — attacker cannot shadow Envelope fields in typed structs
+- `SpawnProposal.GenomePatch` remains `map[string]any` — tracked in issue #30 (fix before patch-apply logic)
 
 ## Skills and Plugins
 
