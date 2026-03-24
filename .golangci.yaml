@@ -32,18 +32,18 @@ linters:
         - "^github\\.com/valpere/aga2aga/pkg/document\\.Envelope$"
         - "^github\\.com/valpere/aga2aga/pkg/document\\.Document$"
 
-issues:
-  exclude-rules:
-    # err113: dynamic errors in UnmarshalYAML are intentional — no useful sentinel value.
-    - path: "types\\.go"
-      linters: [err113]
-      text: "StringOrList"
-    # exhaustive: switch on yaml.Kind — default case already handles unknown nodes correctly.
-    - path: "types\\.go"
-      linters: [exhaustive]
-    # goconst in tests: repeated literals improve readability in fixture-heavy tests.
-    - path: "_test\\.go"
-      linters: [goconst]
-    # wrapcheck: pkg/document wraps errors from yaml.v3 with fmt.Errorf+%w, which is correct.
-    - path: "pkg/document"
-      linters: [wrapcheck]
+  exclusions:
+    rules:
+      # err113: dynamic errors in UnmarshalYAML are intentional — no useful sentinel value.
+      - path: "types\\.go"
+        linters: [err113]
+        text: "StringOrList"
+      # exhaustive: switch on yaml.Kind — default case already handles unknown nodes correctly.
+      - path: "types\\.go"
+        linters: [exhaustive]
+      # goconst in tests: repeated literals improve readability in fixture-heavy tests.
+      - path: "_test\\.go"
+        linters: [goconst]
+      # wrapcheck: pkg/document wraps errors from yaml.v3 with fmt.Errorf+%w, which is correct.
+      - path: "pkg/document"
+        linters: [wrapcheck]
