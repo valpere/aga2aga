@@ -1,7 +1,7 @@
 package document
 
 // Promotion moves an agent from one lifecycle status to a higher one.
-// Wire type: agent.promotion
+// Wire type: agent.promotion.
 type Promotion struct {
 	TargetAgent string `yaml:"target_agent"`
 	FromStatus  string `yaml:"from_status"`
@@ -10,7 +10,7 @@ type Promotion struct {
 }
 
 // Rollback moves an agent back to a lower lifecycle status.
-// Wire type: agent.rollback
+// Wire type: agent.rollback.
 type Rollback struct {
 	TargetAgent string `yaml:"target_agent"`
 	FromStatus  string `yaml:"from_status"`
@@ -19,7 +19,7 @@ type Rollback struct {
 }
 
 // Quarantine immediately isolates an agent pending investigation.
-// Wire type: agent.quarantine
+// Wire type: agent.quarantine.
 type Quarantine struct {
 	TargetAgent           string `yaml:"target_agent"`
 	Reason                string `yaml:"reason"`
@@ -27,7 +27,7 @@ type Quarantine struct {
 }
 
 // Retirement permanently decommissions an agent.
-// Wire type: agent.retirement
+// Wire type: agent.retirement.
 type Retirement struct {
 	TargetAgent    string   `yaml:"target_agent"`
 	Reason         string   `yaml:"reason"`
@@ -36,7 +36,7 @@ type Retirement struct {
 }
 
 // RecombineProposal requests creation of a new agent from two or more parents.
-// Wire type: agent.recombine.proposal
+// Wire type: agent.recombine.proposal.
 type RecombineProposal struct {
 	CandidateID string   `yaml:"candidate_id"`
 	ParentIDs   []string `yaml:"parent_ids"`

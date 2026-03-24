@@ -16,7 +16,7 @@ type MetricsComparison struct {
 }
 
 // EvaluationRequest asks an evaluator to benchmark an agent.
-// Wire type: agent.evaluation.request
+// Wire type: agent.evaluation.request.
 type EvaluationRequest struct {
 	TargetAgent     string           `yaml:"target_agent"`
 	BenchmarkID     string           `yaml:"benchmark_id"`
@@ -27,7 +27,7 @@ type EvaluationRequest struct {
 }
 
 // EvaluationResult reports the outcome of benchmarking an agent.
-// Wire type: agent.evaluation.result
+// Wire type: agent.evaluation.result.
 type EvaluationResult struct {
 	TargetAgent           string             `yaml:"target_agent"`
 	BenchmarkID           string             `yaml:"benchmark_id,omitempty"`

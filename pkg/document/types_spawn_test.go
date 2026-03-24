@@ -8,6 +8,8 @@ import (
 )
 
 func TestSpawnProposal_UnmarshalYAML(t *testing.T) {
+	t.Parallel()
+
 	raw := `type: agent.spawn.proposal
 version: v1
 id: msg-spawn-1
@@ -18,26 +20,34 @@ parent_ids:
 spawn_reason: performance improvement in code review tasks
 status: proposed
 `
+
 	var doc document.Document
+
 	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
 		t.Fatalf("yaml.Unmarshal error = %v", err)
 	}
-	p, err := document.As[document.SpawnProposal](&doc)
+
+	proposal, err := document.As[document.SpawnProposal](&doc)
 	if err != nil {
 		t.Fatalf("As[SpawnProposal]() error = %v", err)
 	}
-	if p.CandidateID != "agent-candidate-42" {
-		t.Errorf("CandidateID = %q, want %q", p.CandidateID, "agent-candidate-42")
+
+	if proposal.CandidateID != "agent-candidate-42" {
+		t.Errorf("CandidateID = %q, want %q", proposal.CandidateID, "agent-candidate-42")
 	}
-	if len(p.ParentIDs) != 1 || p.ParentIDs[0] != "agent-parent-1" {
-		t.Errorf("ParentIDs = %v, want [agent-parent-1]", p.ParentIDs)
+
+	if len(proposal.ParentIDs) != 1 || proposal.ParentIDs[0] != "agent-parent-1" {
+		t.Errorf("ParentIDs = %v, want [agent-parent-1]", proposal.ParentIDs)
 	}
-	if p.SpawnReason != "performance improvement in code review tasks" {
-		t.Errorf("SpawnReason = %q", p.SpawnReason)
+
+	if proposal.SpawnReason != "performance improvement in code review tasks" {
+		t.Errorf("SpawnReason = %q", proposal.SpawnReason)
 	}
 }
 
 func TestSpawnApproval_UnmarshalYAML(t *testing.T) {
+	t.Parallel()
+
 	raw := `type: agent.spawn.approval
 version: v1
 id: msg-approval-1
@@ -46,23 +56,36 @@ in_reply_to: msg-spawn-1
 candidate_id: agent-candidate-42
 decision: approved_for_sandbox
 `
+
 	var doc document.Document
+
 	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
 		t.Fatalf("yaml.Unmarshal error = %v", err)
 	}
-	a, err := document.As[document.SpawnApproval](&doc)
+
+	approval, err := document.As[document.SpawnApproval](&doc)
 	if err != nil {
 		t.Fatalf("As[SpawnApproval]() error = %v", err)
 	}
-	if a.Decision != "approved_for_sandbox" {
-		t.Errorf("Decision = %q, want %q", a.Decision, "approved_for_sandbox")
+
+	if approval.Decision != "approved_for_sandbox" {
+		t.Errorf("Decision = %q, want %q", approval.Decision, "approved_for_sandbox")
 	}
-	if a.CandidateID != "agent-candidate-42" {
-		t.Errorf("CandidateID = %q, want %q", a.CandidateID, "agent-candidate-42")
+
+	if approval.CandidateID != "agent-candidate-42" {
+		t.Errorf("CandidateID = %q, want %q", approval.CandidateID, "agent-candidate-42")
+	}
+
+	// in_reply_to is an Envelope field — consumers MUST read it from doc.Envelope.InReplyTo.
+	// SpawnApproval must NOT have an InReplyTo field (it would always be empty after As[T]).
+	if doc.InReplyTo != "msg-spawn-1" {
+		t.Errorf("Envelope.InReplyTo = %q, want msg-spawn-1", doc.InReplyTo)
 	}
 }
 
 func TestSpawnRejection_UnmarshalYAML(t *testing.T) {
+	t.Parallel()
+
 	raw := `type: agent.spawn.rejection
 version: v1
 id: msg-reject-1
@@ -71,15 +94,19 @@ in_reply_to: msg-spawn-1
 candidate_id: agent-candidate-42
 decision: rejected
 `
+
 	var doc document.Document
+
 	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
 		t.Fatalf("yaml.Unmarshal error = %v", err)
 	}
-	r, err := document.As[document.SpawnRejection](&doc)
+
+	rejection, err := document.As[document.SpawnRejection](&doc)
 	if err != nil {
 		t.Fatalf("As[SpawnRejection]() error = %v", err)
 	}
-	if r.Decision != "rejected" {
-		t.Errorf("Decision = %q, want %q", r.Decision, "rejected")
+
+	if rejection.Decision != "rejected" {
+		t.Errorf("Decision = %q, want %q", rejection.Decision, "rejected")
 	}
 }

@@ -139,19 +139,19 @@ type AgentGenome struct {
 	Status    string `yaml:"status"`
 	CreatedBy string `yaml:"created_by,omitempty"`
 	// DO_NOT_TOUCH: spec §5.4 — lineage is immutable once set.
-	Lineage      *Lineage      `yaml:"lineage,omitempty"`
-	Identity     Identity      `yaml:"identity"`
-	Capabilities Capabilities  `yaml:"capabilities"`
-	Tools        Tools         `yaml:"tools"`
-	ModelPolicy  ModelPolicy   `yaml:"model_policy"`
-	PromptPolicy PromptPolicy  `yaml:"prompt_policy"`
-	RoutingPolicy RoutingPolicy `yaml:"routing_policy"`
-	MemoryPolicy  *MemoryPolicy `yaml:"memory_policy,omitempty"`
-	Thresholds    Thresholds    `yaml:"thresholds"`
-	Economics     *Economics    `yaml:"economics,omitempty"`
-	Fitness       *Fitness      `yaml:"fitness,omitempty"`
-	Constraints   Constraints   `yaml:"constraints"`
-	MutationPolicy MutationPolicy `yaml:"mutation_policy"`
+	Lineage          *Lineage          `yaml:"lineage,omitempty"`
+	Identity         Identity          `yaml:"identity"`
+	Capabilities     Capabilities      `yaml:"capabilities"`
+	Tools            Tools             `yaml:"tools"`
+	ModelPolicy      ModelPolicy       `yaml:"model_policy"`
+	PromptPolicy     PromptPolicy      `yaml:"prompt_policy"`
+	RoutingPolicy    RoutingPolicy     `yaml:"routing_policy"`
+	MemoryPolicy     *MemoryPolicy     `yaml:"memory_policy,omitempty"`
+	Thresholds       Thresholds        `yaml:"thresholds"`
+	Economics        *Economics        `yaml:"economics,omitempty"`
+	Fitness          *Fitness          `yaml:"fitness,omitempty"`
+	Constraints      Constraints       `yaml:"constraints"`
+	MutationPolicy   MutationPolicy    `yaml:"mutation_policy"`
 	RetirementPolicy *RetirementPolicy `yaml:"retirement_policy,omitempty"`
 	SandboxPolicy    *SandboxPolicy    `yaml:"sandbox_policy,omitempty"`
 	Tags             []string          `yaml:"tags,omitempty"`
