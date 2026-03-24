@@ -1,46 +1,49 @@
-linters-settings:
-  depguard:
-    rules:
-      main:
-        list-mode: lax
-        allow:
-          - $gostd
-          - github.com/valpere/aga2aga
-          - gopkg.in/yaml.v3
-          - github.com/stretchr/testify
+version: "2"
 
-  tagliatelle:
-    case:
+linters:
+  settings:
+    depguard:
       rules:
-        yaml: snake
+        main:
+          list-mode: lax
+          allow:
+            - $gostd
+            - github.com/valpere/aga2aga
+            - gopkg.in/yaml.v3
+            - github.com/stretchr/testify
 
-  cyclop:
-    max-complexity: 15
+    tagliatelle:
+      case:
+        rules:
+          yaml: snake
 
-  varnamelen:
-    ignore-names:
-      - tc
-      - tt
-      - ok
-      - id
+    cyclop:
+      max-complexity: 15
 
-  exhaustruct:
-    exclude:
-      - "^github\\.com/valpere/aga2aga/pkg/document\\.Envelope$"
-      - "^github\\.com/valpere/aga2aga/pkg/document\\.Document$"
+    varnamelen:
+      ignore-names:
+        - tc
+        - tt
+        - ok
+        - id
 
-issues:
-  exclude-rules:
-    # err113: dynamic errors in UnmarshalYAML are intentional — no useful sentinel value.
-    - path: "types\\.go"
-      linters: [err113]
-      text: "StringOrList"
-    # exhaustive: switch on yaml.Kind — default case already handles unknown nodes correctly.
-    - path: "types\\.go"
-      linters: [exhaustive]
-    # goconst in tests: repeated literals improve readability in fixture-heavy tests.
-    - path: "_test\\.go"
-      linters: [goconst]
-    # wrapcheck: pkg/document wraps errors from yaml.v3 with fmt.Errorf+%w, which is correct.
-    - path: "pkg/document"
-      linters: [wrapcheck]
+    exhaustruct:
+      exclude:
+        - "^github\\.com/valpere/aga2aga/pkg/document\\.Envelope$"
+        - "^github\\.com/valpere/aga2aga/pkg/document\\.Document$"
+
+  exclusions:
+    rules:
+      # err113: dynamic errors in UnmarshalYAML are intentional — no useful sentinel value.
+      - path: "types\\.go"
+        linters: [err113]
+        text: "StringOrList"
+      # exhaustive: switch on yaml.Kind — default case already handles unknown nodes correctly.
+      - path: "types\\.go"
+        linters: [exhaustive]
+      # goconst in tests: repeated literals improve readability in fixture-heavy tests.
+      - path: "_test\\.go"
+        linters: [goconst]
+      # wrapcheck: pkg/document wraps errors from yaml.v3 with fmt.Errorf+%w, which is correct.
+      - path: "pkg/document"
+        linters: [wrapcheck]
