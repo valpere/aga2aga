@@ -43,7 +43,13 @@ If no open PR: `"No open PR found. Create a PR first or pass a number: /fix-revi
 Load `.claude/skills/fix-review/config.yaml` — extract `provider`, model names, `diff_scope`, `post_summary_to_pr`.
 
 **Provider selection:** If `provider: ask`, present options and save choice with `sed -i`.
-Load API key from environment (`OPENROUTER_API_KEY` or `OLLAMA_API_KEY`).
+
+Load the calling infrastructure and API keys:
+```bash
+. .claude/skills/lib/env.sh
+. .claude/skills/lib/rest.sh
+load_env_key OPENROUTER_API_KEY   # or OLLAMA_BASE_URL for ollama provider
+```
 
 ---
 
@@ -66,7 +72,10 @@ If `DIFF` is empty for a delta round, fall back to the full PR diff.
 
 ## STEP 2: Call the Model
 
-Use `curl` with the provider's API. Write the payload to a temp file to avoid shell-quoting issues with large diffs.
+Use `chat_content` from `lib/rest.sh`. Write the payload to a temp file to avoid shell-quoting issues with large diffs:
+```bash
+RESPONSE=$(chat_content "$PROVIDER" "$MODEL" "$PAYLOAD_FILE")
+```
 
 **Review prompt:**
 
