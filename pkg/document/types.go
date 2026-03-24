@@ -53,8 +53,8 @@ type Envelope struct {
 	Version string               `yaml:"version"`
 	ID      string               `yaml:"id,omitempty"`
 	// WARNING: unverified until Phase 3 — see struct doc above.
-	From      string       `yaml:"from,omitempty"`
-	To        StringOrList `yaml:"to,omitempty"`
+	From string       `yaml:"from,omitempty"`
+	To   StringOrList `yaml:"to,omitempty"`
 	// DO_NOT_TOUCH (for agent.genome documents): spec §5.4 — created_at is
 	// immutable once set. See AgentGenome for the full immutability contract.
 	CreatedAt    string `yaml:"created_at,omitempty"`

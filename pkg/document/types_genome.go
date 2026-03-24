@@ -131,9 +131,9 @@ type SandboxPolicy struct {
 // mutation_policy.forbidden) are intentionally absent — see spec §5.4.
 // A patch-apply function MUST reject any attempt to modify fields not present here.
 type GenomePatch struct {
-	Capabilities  *Capabilities  `yaml:"capabilities,omitempty"`
-	Tools         *Tools         `yaml:"tools,omitempty"`
-	ModelPolicy *ModelPolicy `yaml:"model_policy,omitempty"`
+	Capabilities *Capabilities `yaml:"capabilities,omitempty"`
+	Tools        *Tools        `yaml:"tools,omitempty"`
+	ModelPolicy  *ModelPolicy  `yaml:"model_policy,omitempty"`
 	// SECURITY: PromptPolicy.Style is attacker-controlled — see PromptPolicy.Style annotation (issue #35).
 	PromptPolicy  *PromptPolicy  `yaml:"prompt_policy,omitempty"`
 	RoutingPolicy *RoutingPolicy `yaml:"routing_policy,omitempty"`

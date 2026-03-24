@@ -50,10 +50,10 @@ func TestPromptPolicy_StyleAttackerControlled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		yaml      string
-		wantNil   bool
-		checkFn   func(t *testing.T, style map[string]any)
+		name    string
+		yaml    string
+		wantNil bool
+		checkFn func(t *testing.T, style map[string]any)
 	}{
 		{
 			name:    "absent style field yields nil map",
