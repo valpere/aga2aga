@@ -4,8 +4,8 @@ package document
 // Wire type: agent.promotion.
 type Promotion struct {
 	TargetAgent string         `yaml:"target_agent"`
-	FromStatus  LifecycleState `yaml:"from_status"`
-	ToStatus    LifecycleState `yaml:"to_status"`
+	FromStatus  LifecycleState `yaml:"from_status"`  // self-reported wire string; validate with ValidTransition before applying
+	ToStatus    LifecycleState `yaml:"to_status"`    // self-reported wire string; validate with ValidTransition before applying
 	Reason      string         `yaml:"reason,omitempty"`
 }
 
@@ -13,8 +13,8 @@ type Promotion struct {
 // Wire type: agent.rollback.
 type Rollback struct {
 	TargetAgent string         `yaml:"target_agent"`
-	FromStatus  LifecycleState `yaml:"from_status"`
-	ToStatus    LifecycleState `yaml:"to_status"`
+	FromStatus  LifecycleState `yaml:"from_status"`  // self-reported wire string; validate with ValidTransition before applying
+	ToStatus    LifecycleState `yaml:"to_status"`    // self-reported wire string; validate with ValidTransition before applying
 	Reason      string         `yaml:"reason,omitempty"`
 }
 
