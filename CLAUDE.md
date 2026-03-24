@@ -128,7 +128,7 @@ internal/gateway/ MCP Gateway implementation
 - `Document.Extra` is attacker-controlled; never use directly for auth, signing, or lifecycle decisions
 - `As[T]` strips the 13 Envelope yaml keys via `envelopeKeys` map before marshal — attacker cannot shadow Envelope fields in typed structs
 - `SpawnProposal.GenomePatch` is typed (`*GenomePatch`) — DO_NOT_TOUCH fields are structurally absent; patch-apply MUST only append to `SoftConstraints`, never replace
-- `PromptPolicy.Style` is `map[string]any` — attacker-controlled; patch-apply MUST sanitise before use (tracked: open issue)
+- `PromptPolicy.Style` is `map[string]any` — attacker-controlled (open vocab per spec §4.3); callers MUST sanitise before auth/signing/lifecycle use (annotated in `types_genome.go`)
 
 ## Skills and Plugins
 

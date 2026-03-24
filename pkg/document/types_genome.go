@@ -38,8 +38,11 @@ type ModelPolicy struct {
 
 // PromptPolicy controls how the agent constructs prompts.
 type PromptPolicy struct {
-	Profile string         `yaml:"profile"`
-	Style   map[string]any `yaml:"style,omitempty"`
+	Profile string `yaml:"profile"`
+	// SECURITY: Style is map[string]any — all keys and values are attacker-controlled
+	// (open vocabulary per spec §4.3). Callers MUST NOT use Style values for auth,
+	// signing, or lifecycle decisions without explicit sanitization. See issue #35.
+	Style map[string]any `yaml:"style,omitempty"`
 }
 
 // EscalationRule defines a condition that triggers routing to another agent.
@@ -128,18 +131,19 @@ type SandboxPolicy struct {
 // mutation_policy.forbidden) are intentionally absent — see spec §5.4.
 // A patch-apply function MUST reject any attempt to modify fields not present here.
 type GenomePatch struct {
-	Capabilities    *Capabilities  `yaml:"capabilities,omitempty"`
-	Tools           *Tools         `yaml:"tools,omitempty"`
-	ModelPolicy     *ModelPolicy   `yaml:"model_policy,omitempty"`
-	PromptPolicy    *PromptPolicy  `yaml:"prompt_policy,omitempty"`
-	RoutingPolicy   *RoutingPolicy `yaml:"routing_policy,omitempty"`
-	MemoryPolicy    *MemoryPolicy  `yaml:"memory_policy,omitempty"`
-	Thresholds      *Thresholds    `yaml:"thresholds,omitempty"`
-	Economics       *Economics     `yaml:"economics,omitempty"`
+	Capabilities  *Capabilities  `yaml:"capabilities,omitempty"`
+	Tools         *Tools         `yaml:"tools,omitempty"`
+	ModelPolicy *ModelPolicy `yaml:"model_policy,omitempty"`
+	// SECURITY: PromptPolicy.Style is attacker-controlled — see PromptPolicy.Style annotation (issue #35).
+	PromptPolicy  *PromptPolicy  `yaml:"prompt_policy,omitempty"`
+	RoutingPolicy *RoutingPolicy `yaml:"routing_policy,omitempty"`
+	MemoryPolicy  *MemoryPolicy  `yaml:"memory_policy,omitempty"`
+	Thresholds    *Thresholds    `yaml:"thresholds,omitempty"`
+	Economics     *Economics     `yaml:"economics,omitempty"`
 	// Patch-apply MUST append these to the live Constraints.Soft slice — never replace it.
 	// Removal of existing soft constraints via a spawn proposal is not permitted.
-	SoftConstraints []string       `yaml:"soft_constraints,omitempty"`
-	Tags            []string       `yaml:"tags,omitempty"`
+	SoftConstraints []string `yaml:"soft_constraints,omitempty"`
+	Tags            []string `yaml:"tags,omitempty"`
 }
 
 // AgentGenome is the complete blueprint for an agent, describing its
