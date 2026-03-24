@@ -56,6 +56,21 @@ func TestStringOrList_UnmarshalYAML(t *testing.T) {
 	}
 }
 
+func TestStringOrList_UnmarshalYAML_Error(t *testing.T) {
+	t.Parallel()
+
+	// A YAML mapping node (map value) must be rejected — StringOrList only accepts scalar or sequence.
+	input := "to:\n  key: value"
+
+	var dest struct {
+		To document.StringOrList `yaml:"to"`
+	}
+
+	if err := yaml.Unmarshal([]byte(input), &dest); err == nil {
+		t.Errorf("yaml.Unmarshal() expected error for mapping node, got nil")
+	}
+}
+
 func TestAs_RoundTrip(t *testing.T) {
 	t.Parallel()
 
