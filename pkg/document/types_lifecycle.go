@@ -3,19 +3,19 @@ package document
 // Promotion moves an agent from one lifecycle status to a higher one.
 // Wire type: agent.promotion.
 type Promotion struct {
-	TargetAgent string `yaml:"target_agent"`
-	FromStatus  string `yaml:"from_status"`
-	ToStatus    string `yaml:"to_status"`
-	Reason      string `yaml:"reason,omitempty"`
+	TargetAgent string         `yaml:"target_agent"`
+	FromStatus  LifecycleState `yaml:"from_status"`  // self-reported wire string; validate with ValidTransition before applying
+	ToStatus    LifecycleState `yaml:"to_status"`    // self-reported wire string; validate with ValidTransition before applying
+	Reason      string         `yaml:"reason,omitempty"`
 }
 
 // Rollback moves an agent back to a lower lifecycle status.
 // Wire type: agent.rollback.
 type Rollback struct {
-	TargetAgent string `yaml:"target_agent"`
-	FromStatus  string `yaml:"from_status"`
-	ToStatus    string `yaml:"to_status"`
-	Reason      string `yaml:"reason,omitempty"`
+	TargetAgent string         `yaml:"target_agent"`
+	FromStatus  LifecycleState `yaml:"from_status"`  // self-reported wire string; validate with ValidTransition before applying
+	ToStatus    LifecycleState `yaml:"to_status"`    // self-reported wire string; validate with ValidTransition before applying
+	Reason      string         `yaml:"reason,omitempty"`
 }
 
 // Quarantine immediately isolates an agent pending investigation.
