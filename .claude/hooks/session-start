@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# SessionStart hook — injects aga2aga project context into every Claude Code session.
+# Keeps each session oriented on current phase, milestone, constraints, and key rules.
+
+set -euo pipefail
+
+# Escape string for JSON embedding using bash parameter substitution.
+# Each ${s//old/new} is a single C-level pass — faster than character loops.
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+# Fetch open issues dynamically so the list is always current.
+# Fallback to empty string if gh is unavailable.
+active_issues=$(gh issue list \
+    --repo valpere/aga2aga \
+    --state open \
+    --milestone "M1: First Document" \
+    --limit 10 \
+    --json number,title \
+    --jq '.[] | "- #\(.number) \(.title)"' 2>/dev/null || true)
+
+if [ -z "$active_issues" ]; then
+    active_issues="(could not fetch — run: gh issue list --repo valpere/aga2aga --state open)"
+fi
+
+static_context=$(cat <<'STATIC'
+## aga2aga — Session Context
+
+**Project:** Go MCP Gateway bridging Claude Code / Codex / Gemini → Redis Streams via the Skills Document protocol.
+**Module:** `github.com/valpere/aga2aga`
+
+### Current Phase & Milestone
+
+| | |
+|---|---|
+| **Phase** | Phase 0 — Bootstrap |
+| **Milestone** | M1: First Document (due 2026-04-06) |
+| **Goal** | Parse, validate, and create all Skills Document message types. 100+ tests green. |
+
+### Key Constraints
+
+- **Solo developer** — bandwidth is the bottleneck; keep scope tight (YAGNI)
+- **Closed agents** (Claude Code, Codex) are session-based — the gateway proxies state between calls
+- **ZK crypto layers** are deferred to Phase 3+ — not near-term
+- **Safety is a hard gate** — zero violations required for agent promotion
+- **Clean Architecture** — `pkg/` never imports `internal/` or `cmd/`
+
+### Mandatory Rules (from CLAUDE.md)
+
+**1% Rule:** If there is even a 1% chance a skill applies, invoke it — not optional.
+Do NOT rationalize away with: "this is just a simple question", "I remember that skill", "overkill", "need context first".
+
+**TDD Mandate:** Failing test FIRST. Watch it fail. Then minimum code to pass.
+NEVER write production code before a failing test exists. Table-driven tests (`[]struct{...}`) are the default.
+
+**Verification Discipline:** No completion claims without fresh evidence.
+Sequence: identify command → run it → examine output → then state the claim.
+Forbidden: "should work", "probably done", "I think it's fixed".
+
+**Debugging Threshold:** After 3 failed fix attempts, STOP. Surface to user — it's an architectural problem.
+
+**DO_NOT_TOUCH patterns:**
+- `ValidTransition()` function signature in `lifecycle.go`
+- Lifecycle transition table (the map itself)
+- Immutable genome fields list (`id`, `lineage`, `genome_version`, `created_at`, `kind`)
+- JSON Schema `$defs` names in `schema.yaml`
+- `ProtocolVersion = "v1"` constant
+- `constraints.hard` / `identity` fields (proposals that weaken hard constraints MUST be rejected)
+
+### Reference Locations
+
+- Design docs: `../context/preparation/` (MCP patterns, Skills Document spec, Agent Evolution Protocol)
+- Spec: doc 17 (formal spec), doc 18 (JSON Schema)
+STATIC
+)
+
+context="${static_context}
+
+### Open Issues (M1: First Document)
+
+${active_issues}"
+
+session_context=$(escape_for_json "$context")
+
+# Output Claude Code hookSpecificOutput format.
+# Uses printf (not heredoc) to avoid bash 5.3+ heredoc hang with large strings.
+printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$session_context"
+
+exit 0

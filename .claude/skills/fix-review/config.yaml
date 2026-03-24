@@ -1,0 +1,53 @@
+# fix-review multi-model configuration
+#
+# provider controls which inference backend is used for all 3 rounds:
+#   openrouter  — OpenRouter cloud. Requires OPENROUTER_API_KEY in .env.local.
+#   ollama      — Ollama cloud. Requires OLLAMA_API_KEY in .env.local.
+#   ask         — Ask the user on next run, then save the choice here.
+#
+# To switch provider: "switch fix-review to ollama" or edit directly.
+
+provider: openrouter
+
+# ---------------------------------------------------------------------------
+# Reviewer models per provider
+# Three different model families — eliminates the "blurred eye" effect.
+# ---------------------------------------------------------------------------
+
+reviewers:
+  openrouter:
+    round_1:
+      model: deepseek/deepseek-v3.2-20251201    # DeepSeek V3.2 — strong coder, independent architecture
+    round_2:
+      model: qwen/qwen3-coder-next              # Alibaba/Qwen — coding-agent focus, 262K ctx
+    round_3:
+      model: mistralai/devstral-2512            # Mistral — multi-file codebase explorer, 256K ctx
+
+  ollama:
+    round_1:
+      model: kimi-k2.5:cloud                    # Moonshot AI — strong architecture + 128K ctx
+    round_2:
+      model: minimax-m2.5:cloud                 # MiniMax — RL-trained, 198K ctx
+    round_3:
+      model: devstral-2:123b-cloud              # Mistral — codebase explorer, 256K ctx
+
+# ---------------------------------------------------------------------------
+# Arbiter (Round 4)
+# Claude reviews full PR diff + all prior findings, confirms/escalates/dismisses,
+# adds independent findings, applies fixes, commits, then auto-merges.
+# No API call — Claude is the Arbiter.
+# ---------------------------------------------------------------------------
+
+arbiter: claude   # do not change
+
+# ---------------------------------------------------------------------------
+# Behaviour flags
+# ---------------------------------------------------------------------------
+
+# diff_scope for rounds 2-3 (round 1 always sees full PR diff):
+#   delta — only the previous round's commit (git diff HEAD~1)
+#   full  — entire PR since branch was cut
+diff_scope: delta
+
+# Post a collapsible PR comment after each round.
+post_summary_to_pr: true
