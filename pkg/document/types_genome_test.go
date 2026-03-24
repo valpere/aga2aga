@@ -7,15 +7,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TestPromptPolicy_StyleAttackerControlled is a security surface documentation test.
-// PromptPolicy.Style is map[string]any — it accepts arbitrary YAML keys/values from
-// the wire. Callers MUST NOT use Style values for auth, signing, or lifecycle decisions
-// without explicit sanitization. This test locks the open-vocab contract.
-// DO NOT DELETE — this test documents the CWE-20 surface from issue #35.
-func TestPromptPolicy_StyleAttackerControlled(t *testing.T) {
-	t.Parallel()
-
-	raw := `type: agent.genome
+// baseGenomeYAML returns a minimal valid agent.genome YAML with the given style block
+// substituted in. Used by security surface tests that vary only the style field.
+func baseGenomeYAML(styleBlock string) string {
+	return `type: agent.genome
 version: v1
 agent_id: agent-style-test
 kind: reviewer
@@ -32,13 +27,7 @@ model_policy:
   provider: anthropic
 prompt_policy:
   profile: balanced
-  style:
-    tone: formal
-    verbosity: high
-    injected_key: attacker-value
-    nested:
-      deep: payload
-routing_policy:
+` + styleBlock + `routing_policy:
   accepts:
     - task.request
 thresholds:
@@ -50,32 +39,95 @@ mutation_policy:
   allowed:
     - prompt_policy
 `
+}
 
-	var doc document.Document
+// TestPromptPolicy_StyleAttackerControlled is a security surface documentation test.
+// PromptPolicy.Style is map[string]any — it accepts arbitrary YAML keys/values from
+// the wire. Callers MUST NOT use Style values for auth, signing, or lifecycle decisions
+// without explicit sanitization. This test locks the open-vocab contract.
+// DO NOT DELETE — this test documents the CWE-20 surface from issue #35.
+func TestPromptPolicy_StyleAttackerControlled(t *testing.T) {
+	t.Parallel()
 
-	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
-		t.Fatalf("yaml.Unmarshal error = %v", err)
+	tests := []struct {
+		name      string
+		yaml      string
+		wantNil   bool
+		checkFn   func(t *testing.T, style map[string]any)
+	}{
+		{
+			name:    "absent style field yields nil map",
+			yaml:    baseGenomeYAML(""),
+			wantNil: true,
+		},
+		{
+			name: "flat attacker keys are all preserved",
+			yaml: baseGenomeYAML(`  style:
+    tone: formal
+    injected_key: attacker-value
+`),
+			checkFn: func(t *testing.T, style map[string]any) {
+				t.Helper()
+				if style["tone"] != "formal" { // string scalar from gopkg.in/yaml.v3
+					t.Errorf("Style[tone] = %v, want formal", style["tone"])
+				}
+				if _, ok := style["injected_key"]; !ok {
+					t.Error("Style[injected_key] not preserved — open-vocab contract broken")
+				}
+			},
+		},
+		{
+			name: "nested attacker payload is preserved at all depths",
+			yaml: baseGenomeYAML(`  style:
+    nested:
+      deep: payload
+`),
+			checkFn: func(t *testing.T, style map[string]any) {
+				t.Helper()
+				nested, ok := style["nested"]
+				if !ok {
+					t.Fatal("Style[nested] not preserved — open-vocab contract broken")
+				}
+				inner, ok := nested.(map[string]any)
+				if !ok {
+					t.Fatalf("Style[nested] type = %T, want map[string]any", nested)
+				}
+				if inner["deep"] != "payload" {
+					t.Errorf("Style[nested][deep] = %v, want payload", inner["deep"])
+				}
+			},
+		},
 	}
 
-	genome, err := document.As[document.AgentGenome](&doc)
-	if err != nil {
-		t.Fatalf("As[AgentGenome]() error = %v", err)
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Style round-trips arbitrary keys — open vocab by design (spec §4.3).
-	// The entire map is attacker-controlled; callers must sanitize before use.
-	if genome.PromptPolicy.Style == nil {
-		t.Fatal("PromptPolicy.Style is nil, want map with entries")
-	}
+			var doc document.Document
+			if err := yaml.Unmarshal([]byte(tc.yaml), &doc); err != nil {
+				t.Fatalf("yaml.Unmarshal error = %v", err)
+			}
 
-	if genome.PromptPolicy.Style["tone"] != "formal" {
-		t.Errorf("Style[tone] = %v, want formal", genome.PromptPolicy.Style["tone"])
-	}
+			genome, err := document.As[document.AgentGenome](&doc)
+			if err != nil {
+				t.Fatalf("As[AgentGenome]() error = %v", err)
+			}
 
-	// Attacker-injected key is preserved — this is by design (open vocab).
-	// Callers bear responsibility for sanitization.
-	if _, ok := genome.PromptPolicy.Style["injected_key"]; !ok {
-		t.Error("Style[injected_key] not preserved — open-vocab contract broken")
+			if tc.wantNil {
+				if genome.PromptPolicy.Style != nil {
+					t.Errorf("Style = %v, want nil", genome.PromptPolicy.Style)
+				}
+				return
+			}
+
+			if genome.PromptPolicy.Style == nil {
+				t.Fatal("PromptPolicy.Style is nil, want map with entries")
+			}
+
+			if tc.checkFn != nil {
+				tc.checkFn(t, genome.PromptPolicy.Style)
+			}
+		})
 	}
 }
 
