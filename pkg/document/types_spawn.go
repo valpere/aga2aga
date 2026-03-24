@@ -9,7 +9,9 @@ type SpawnProposal struct {
 	SpawnReason    string         `yaml:"spawn_reason"`
 	RiskLevel      string         `yaml:"risk_level,omitempty"`
 	EvaluationPlan string         `yaml:"evaluation_plan,omitempty"`
-	GenomePatch    map[string]any `yaml:"genome_patch,omitempty"`
+	// GenomePatch describes the mutable subset of AgentGenome a proposer may change.
+	// DO_NOT_TOUCH fields are structurally absent. See GenomePatch in types_genome.go.
+	GenomePatch    *GenomePatch   `yaml:"genome_patch,omitempty"`
 }
 
 // SpawnApproval grants permission to move a candidate agent to sandbox.
