@@ -1,0 +1,334 @@
+# aga2aga Skills Document Protocol — JSON Schema 2020-12
+#
+# DO_NOT_TOUCH: $defs names must not change after merge — they are referenced by
+# pkg/protocol/registry.go SchemaRef values and pkg/document/validator.go.
+# Adding new $defs is safe; renaming or removing existing ones breaks validation.
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "aga2aga://schema"
+description: "aga2aga Skills Document Protocol schema for agent evolution message types"
+type: object
+
+$defs:
+
+  # ---------------------------------------------------------------------------
+  # Reusable primitives
+  # ---------------------------------------------------------------------------
+
+  nonemptyString:
+    type: string
+    minLength: 1
+
+  lifecycleState:
+    type: string
+    enum:
+      - proposed
+      - approved_for_sandbox
+      - sandbox
+      - candidate
+      - active
+      - inactive
+      - retired
+      - rejected
+      - failed_sandbox
+      - rolled_back
+      - quarantined
+
+  stringArray:
+    type: array
+    items:
+      type: string
+      minLength: 1
+
+  # ---------------------------------------------------------------------------
+  # Nested object types used in agentGenome
+  # ---------------------------------------------------------------------------
+
+  identity:
+    type: object
+    required: [public_key]
+    properties:
+      public_key:
+        type: string
+        minLength: 1
+      pseudonym:
+        type: string
+
+  capabilities:
+    type: object
+    required: [skills]
+    properties:
+      skills:
+        $ref: "#/$defs/stringArray"
+      domains:
+        $ref: "#/$defs/stringArray"
+
+  tools:
+    type: object
+    required: [allowed]
+    properties:
+      allowed:
+        $ref: "#/$defs/stringArray"
+      preferred_order:
+        $ref: "#/$defs/stringArray"
+
+  modelPolicy:
+    type: object
+    required: [provider]
+    properties:
+      provider:
+        $ref: "#/$defs/nonemptyString"
+      model:
+        type: string
+      model_class:
+        type: string
+      temperature:
+        type: number
+      max_context_tokens:
+        type: integer
+
+  promptPolicy:
+    type: object
+    required: [profile]
+    properties:
+      profile:
+        $ref: "#/$defs/nonemptyString"
+      style:
+        type: object
+
+  routingPolicy:
+    type: object
+    required: [accepts]
+    properties:
+      accepts:
+        $ref: "#/$defs/stringArray"
+      delegates_to:
+        $ref: "#/$defs/stringArray"
+      escalation_rules:
+        type: array
+
+  thresholds:
+    type: object
+    properties:
+      confidence_min:
+        type: number
+        minimum: 0
+        maximum: 1
+      commit_min:
+        type: number
+        minimum: 0
+        maximum: 1
+      reject_min:
+        type: number
+        minimum: 0
+        maximum: 1
+
+  constraints:
+    type: object
+    required: [hard]
+    properties:
+      hard:
+        $ref: "#/$defs/stringArray"
+      soft:
+        $ref: "#/$defs/stringArray"
+
+  mutationPolicy:
+    type: object
+    required: [allowed]
+    properties:
+      allowed:
+        $ref: "#/$defs/stringArray"
+      forbidden:
+        $ref: "#/$defs/stringArray"
+
+  fitnessMetrics:
+    type: object
+    properties:
+      quality:
+        type: number
+      reliability:
+        type: number
+      safety:
+        type: number
+      latency:
+        type: number
+      cost_efficiency:
+        type: number
+      collaboration:
+        type: number
+      weighted_total:
+        type: number
+
+  # ---------------------------------------------------------------------------
+  # Message type $defs
+  # DO_NOT_TOUCH: names match SchemaRef in pkg/protocol/registry.go
+  # ---------------------------------------------------------------------------
+
+  agentGenome:
+    type: object
+    required:
+      - agent_id
+      - kind
+      - status
+      - identity
+      - capabilities
+      - tools
+      - model_policy
+      - prompt_policy
+      - routing_policy
+      - thresholds
+      - constraints
+      - mutation_policy
+    properties:
+      agent_id:
+        $ref: "#/$defs/nonemptyString"
+      kind:
+        $ref: "#/$defs/nonemptyString"
+      status:
+        $ref: "#/$defs/lifecycleState"
+      created_by:
+        type: string
+      identity:
+        $ref: "#/$defs/identity"
+      capabilities:
+        $ref: "#/$defs/capabilities"
+      tools:
+        $ref: "#/$defs/tools"
+      model_policy:
+        $ref: "#/$defs/modelPolicy"
+      prompt_policy:
+        $ref: "#/$defs/promptPolicy"
+      routing_policy:
+        $ref: "#/$defs/routingPolicy"
+      thresholds:
+        $ref: "#/$defs/thresholds"
+      constraints:
+        $ref: "#/$defs/constraints"
+      mutation_policy:
+        $ref: "#/$defs/mutationPolicy"
+      tags:
+        $ref: "#/$defs/stringArray"
+
+  agentSpawnProposal:
+    type: object
+    required: [candidate_id, parent_ids, spawn_reason]
+    properties:
+      candidate_id:
+        $ref: "#/$defs/nonemptyString"
+      parent_ids:
+        $ref: "#/$defs/stringArray"
+      spawn_reason:
+        $ref: "#/$defs/nonemptyString"
+      risk_level:
+        type: string
+      evaluation_plan:
+        type: string
+
+  agentSpawnApproval:
+    type: object
+    required: [candidate_id, decision]
+    properties:
+      candidate_id:
+        $ref: "#/$defs/nonemptyString"
+      decision:
+        $ref: "#/$defs/nonemptyString"
+
+  agentSpawnRejection:
+    type: object
+    required: [candidate_id, decision]
+    properties:
+      candidate_id:
+        $ref: "#/$defs/nonemptyString"
+      decision:
+        $ref: "#/$defs/nonemptyString"
+
+  agentEvaluationRequest:
+    type: object
+    required: [target_agent, benchmark_id, mode]
+    properties:
+      target_agent:
+        $ref: "#/$defs/nonemptyString"
+      benchmark_id:
+        $ref: "#/$defs/nonemptyString"
+      mode:
+        $ref: "#/$defs/nonemptyString"
+      num_tasks:
+        type: integer
+      compare_against:
+        $ref: "#/$defs/stringArray"
+
+  agentEvaluationResult:
+    type: object
+    required: [target_agent, overall_decision, metrics, hard_constraints_passed]
+    properties:
+      target_agent:
+        $ref: "#/$defs/nonemptyString"
+      overall_decision:
+        $ref: "#/$defs/nonemptyString"
+      metrics:
+        $ref: "#/$defs/fitnessMetrics"
+      hard_constraints_passed:
+        type: boolean
+      safety_violations:
+        type: integer
+        minimum: 0
+
+  agentPromotion:
+    type: object
+    required: [target_agent, from_status, to_status]
+    properties:
+      target_agent:
+        $ref: "#/$defs/nonemptyString"
+      from_status:
+        $ref: "#/$defs/lifecycleState"
+      to_status:
+        $ref: "#/$defs/lifecycleState"
+      reason:
+        type: string
+
+  agentRollback:
+    type: object
+    required: [target_agent, from_status, to_status]
+    properties:
+      target_agent:
+        $ref: "#/$defs/nonemptyString"
+      from_status:
+        $ref: "#/$defs/lifecycleState"
+      to_status:
+        $ref: "#/$defs/lifecycleState"
+      reason:
+        type: string
+
+  agentRetirement:
+    type: object
+    required: [target_agent, reason]
+    properties:
+      target_agent:
+        $ref: "#/$defs/nonemptyString"
+      reason:
+        $ref: "#/$defs/nonemptyString"
+      retirement_mode:
+        type: string
+      replace_with:
+        $ref: "#/$defs/stringArray"
+
+  agentQuarantine:
+    type: object
+    required: [target_agent, reason]
+    properties:
+      target_agent:
+        $ref: "#/$defs/nonemptyString"
+      reason:
+        $ref: "#/$defs/nonemptyString"
+      investigation_required:
+        type: boolean
+
+  agentRecombineProposal:
+    type: object
+    required: [candidate_id, parent_ids, goal]
+    properties:
+      candidate_id:
+        $ref: "#/$defs/nonemptyString"
+      parent_ids:
+        $ref: "#/$defs/stringArray"
+      goal:
+        $ref: "#/$defs/nonemptyString"
