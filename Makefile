@@ -19,19 +19,24 @@ test:
 ## lint: run go vet and golangci-lint
 lint:
 	go vet ./...
+	@command -v golangci-lint >/dev/null 2>&1 || \
+		{ echo "golangci-lint not installed — see https://golangci-lint.run/usage/install/"; exit 1; }
 	golangci-lint run
 
 ## validate: validate test fixtures with the aga CLI (no-op until Phase 1)
 validate:
-	@if ls tests/testdata/*.md 2>/dev/null | grep -q .; then \
-		go run ./cmd/aga validate tests/testdata/*.md; \
+	@files=$$(find tests/testdata -maxdepth 1 -name '*.md' 2>/dev/null); \
+	if [ -n "$$files" ]; then \
+		echo "$$files" | xargs go run ./cmd/aga validate; \
 	else \
 		echo "No fixtures found in tests/testdata/ — skipping"; \
 	fi
 
-## docker: build the gateway container image
+VERSION ?= $(shell git rev-parse --short HEAD)
+
+## docker: build the gateway container image (tagged with git SHA and :latest)
 docker:
-	docker build -t aga2aga .
+	docker build -t aga2aga:$(VERSION) -t aga2aga:latest .
 
 ## tidy: sync go.mod and go.sum
 tidy:
