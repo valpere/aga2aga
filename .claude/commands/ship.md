@@ -100,15 +100,20 @@ The skill runs 3 external model rounds + Claude Arbiter, then auto-merges.
 
 ### 8. Post-Merge Cleanup
 
-After merge, remove the in-progress label:
+The fix-review skill queues auto-merge and waits for the PR to reach MERGED state. Once fix-review confirms the merge, remove the label and return to main:
+
 ```bash
 gh issue edit {number} --repo valpere/aga2aga --remove-label "status: in-progress"
+git checkout main && git pull
 ```
+
+If fix-review timed out waiting for merge, check `gh pr view {pr-number} --json state` before removing the label.
 
 ---
 
 ## Rules
 
+- Never push directly to main — `main` requires a PR; use feature branches
 - Never skip the TDD cycle — tests MUST fail before implementation
 - Never skip parallel review — all three agents must run
 - Never merge without fix-review — even if parallel review finds nothing
