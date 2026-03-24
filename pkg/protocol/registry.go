@@ -1,11 +1,19 @@
 package protocol
 
-// BaseEnvelopeFields are required on every message per the base envelope schema.
-var BaseEnvelopeFields = []string{"type", "version"}
+// baseEnvelopeFields are required on every message per the base envelope schema.
+// Kept unexported to prevent external mutation; use BaseEnvelopeFields() for access.
+var baseEnvelopeFields = [2]string{"type", "version"} //nolint:gochecknoglobals
 
-// Registry maps each MessageType to its TypeMeta.
-// It is the single source of truth consumed by parser, validator, and builder.
-var Registry = map[MessageType]TypeMeta{
+// BaseEnvelopeFields returns a copy of the fields required on every message.
+// The returned slice is independent — callers cannot affect the authoritative list.
+func BaseEnvelopeFields() []string {
+	s := baseEnvelopeFields
+	return s[:]
+}
+
+// registry is the authoritative map of MessageType to TypeMeta.
+// Kept unexported to prevent external mutation; use Lookup() and Registered() for access.
+var registry = map[MessageType]TypeMeta{ //nolint:gochecknoglobals
 	// Agent evolution (11)
 	AgentGenome: {
 		RequiredFields: []string{
@@ -59,45 +67,76 @@ var Registry = map[MessageType]TypeMeta{
 	// Task (5)
 	TaskRequest: {
 		RequiredFields: []string{"id", "from", "to", "exec_id", "step"},
+		SchemaRef:      "",
 	},
 	TaskResult: {
 		RequiredFields: []string{"id", "from", "to", "exec_id", "step"},
+		SchemaRef:      "",
 	},
 	TaskFail: {
 		RequiredFields: []string{"id", "from", "to", "exec_id", "step"},
+		SchemaRef:      "",
 	},
 	TaskProgress: {
 		RequiredFields: []string{"id", "from", "to", "exec_id", "step"},
+		SchemaRef:      "",
 	},
+	// agent.message: id required for deduplication and replay protection.
 	AgentMessage: {
-		RequiredFields: []string{"from", "to"},
+		RequiredFields: []string{"id", "from", "to"},
+		SchemaRef:      "",
 	},
 
 	// Negotiation (8)
 	// negotiation.propose starts a thread — no in_reply_to required.
 	NegotiationPropose: {
 		RequiredFields: []string{"id", "from", "to", "thread_id"},
+		SchemaRef:      "",
 	},
 	// All subsequent negotiation types require in_reply_to.
 	NegotiationAccept: {
 		RequiredFields: []string{"id", "from", "to", "thread_id", "in_reply_to"},
+		SchemaRef:      "",
 	},
 	NegotiationReject: {
 		RequiredFields: []string{"id", "from", "to", "thread_id", "in_reply_to"},
+		SchemaRef:      "",
 	},
 	NegotiationCounter: {
 		RequiredFields: []string{"id", "from", "to", "thread_id", "in_reply_to"},
+		SchemaRef:      "",
 	},
 	NegotiationClarify: {
 		RequiredFields: []string{"id", "from", "to", "thread_id", "in_reply_to"},
+		SchemaRef:      "",
 	},
 	NegotiationDelegate: {
 		RequiredFields: []string{"id", "from", "to", "thread_id", "in_reply_to"},
+		SchemaRef:      "",
 	},
 	NegotiationCommit: {
 		RequiredFields: []string{"id", "from", "to", "thread_id", "in_reply_to"},
+		SchemaRef:      "",
 	},
 	NegotiationAbort: {
 		RequiredFields: []string{"id", "from", "to", "thread_id", "in_reply_to"},
+		SchemaRef:      "",
 	},
+}
+
+// Lookup returns the TypeMeta for mt and reports whether it is registered.
+// TypeMeta is returned by value — callers cannot mutate the registry.
+func Lookup(mt MessageType) (TypeMeta, bool) {
+	meta, ok := registry[mt]
+	return meta, ok
+}
+
+// Registered returns a snapshot of all registered MessageTypes.
+// The returned slice is a copy — callers cannot affect the registry.
+func Registered() []MessageType {
+	out := make([]MessageType, 0, len(registry))
+	for mt := range registry {
+		out = append(out, mt)
+	}
+	return out
 }
