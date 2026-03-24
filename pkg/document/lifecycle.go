@@ -1,6 +1,9 @@
-// Package document — lifecycle state machine.
-//
 // DO_NOT_TOUCH: lifecycle transition table — spec §16 — modifying breaks wire compatibility.
+//
+// SECURITY: ValidTransition enforces the spec §16 table but is not called automatically
+// on document parse. Every code path that applies a Promotion or Rollback document MUST
+// call ValidTransition(from, to) before mutating agent state. This enforcement will be
+// centralised in the validator layer (issue #19).
 package document
 
 // LifecycleState is a named string type for agent lifecycle states.
@@ -8,17 +11,17 @@ type LifecycleState string
 
 // Agent lifecycle states from spec §16.
 const (
-	StateProposed          LifecycleState = "proposed"
+	StateProposed           LifecycleState = "proposed"
 	StateApprovedForSandbox LifecycleState = "approved_for_sandbox"
-	StateSandbox           LifecycleState = "sandbox"
-	StateCandidate         LifecycleState = "candidate"
-	StateActive            LifecycleState = "active"
-	StateInactive          LifecycleState = "inactive"
-	StateRetired           LifecycleState = "retired"
-	StateRejected          LifecycleState = "rejected"
-	StateFailedSandbox     LifecycleState = "failed_sandbox"
-	StateRolledBack        LifecycleState = "rolled_back"
-	StateQuarantined       LifecycleState = "quarantined"
+	StateSandbox            LifecycleState = "sandbox"
+	StateCandidate          LifecycleState = "candidate"
+	StateActive             LifecycleState = "active"
+	StateInactive           LifecycleState = "inactive"
+	StateRetired            LifecycleState = "retired"
+	StateRejected           LifecycleState = "rejected"
+	StateFailedSandbox      LifecycleState = "failed_sandbox"
+	StateRolledBack         LifecycleState = "rolled_back"
+	StateQuarantined        LifecycleState = "quarantined"
 )
 
 // DO_NOT_TOUCH: transitionTable encodes all valid lifecycle transitions from spec §16.
@@ -51,6 +54,13 @@ func ValidTransition(from, to LifecycleState) bool {
 
 // AllowedTransitions returns all valid next states from the given state.
 // Returns nil for terminal states (no outgoing transitions).
+// The returned slice is a copy — callers may not modify the transition table.
 func AllowedTransitions(from LifecycleState) []LifecycleState {
-	return transitionTable[from]
+	s := transitionTable[from]
+	if s == nil {
+		return nil
+	}
+	result := make([]LifecycleState, len(s))
+	copy(result, s)
+	return result
 }
