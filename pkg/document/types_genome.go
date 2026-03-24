@@ -38,8 +38,11 @@ type ModelPolicy struct {
 
 // PromptPolicy controls how the agent constructs prompts.
 type PromptPolicy struct {
-	Profile string         `yaml:"profile"`
-	Style   map[string]any `yaml:"style,omitempty"`
+	Profile string `yaml:"profile"`
+	// SECURITY: Style is map[string]any — all keys and values are attacker-controlled
+	// (open vocabulary per spec §4.3). Callers MUST NOT use Style values for auth,
+	// signing, or lifecycle decisions without explicit sanitization. See issue #35.
+	Style map[string]any `yaml:"style,omitempty"`
 }
 
 // EscalationRule defines a condition that triggers routing to another agent.
