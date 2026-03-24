@@ -1,33 +1,36 @@
-linters-settings:
-  depguard:
-    rules:
-      main:
-        list-mode: lax
-        allow:
-          - $gostd
-          - github.com/valpere/aga2aga
-          - gopkg.in/yaml.v3
-          - github.com/stretchr/testify
+version: "2"
 
-  tagliatelle:
-    case:
+linters:
+  settings:
+    depguard:
       rules:
-        yaml: snake
+        main:
+          list-mode: lax
+          allow:
+            - $gostd
+            - github.com/valpere/aga2aga
+            - gopkg.in/yaml.v3
+            - github.com/stretchr/testify
 
-  cyclop:
-    max-complexity: 15
+    tagliatelle:
+      case:
+        rules:
+          yaml: snake
 
-  varnamelen:
-    ignore-names:
-      - tc
-      - tt
-      - ok
-      - id
+    cyclop:
+      max-complexity: 15
 
-  exhaustruct:
-    exclude:
-      - "^github\\.com/valpere/aga2aga/pkg/document\\.Envelope$"
-      - "^github\\.com/valpere/aga2aga/pkg/document\\.Document$"
+    varnamelen:
+      ignore-names:
+        - tc
+        - tt
+        - ok
+        - id
+
+    exhaustruct:
+      exclude:
+        - "^github\\.com/valpere/aga2aga/pkg/document\\.Envelope$"
+        - "^github\\.com/valpere/aga2aga/pkg/document\\.Document$"
 
 issues:
   exclude-rules:
