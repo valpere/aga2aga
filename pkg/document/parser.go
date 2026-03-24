@@ -64,8 +64,11 @@ func SplitFrontMatter(raw []byte) (yamlBytes []byte, body string, err error) {
 	// yamlBytes ends with the newline that precedes "\n---".
 	yamlBytes = content[:closingIdx+1]
 
-	// Skip past "\n---" (4 bytes); then skip optional '\n' before body.
+	// Skip past "\n---" (4 bytes); then skip optional CR+LF before body.
 	after := content[closingIdx+4:]
+	if len(after) > 0 && after[0] == '\r' {
+		after = after[1:] // strip CR for CRLF line endings
+	}
 	if len(after) > 0 && after[0] == '\n' {
 		body = string(after[1:])
 	}

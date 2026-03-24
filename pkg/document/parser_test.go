@@ -204,6 +204,8 @@ func TestParse(t *testing.T) {
 		_, err := document.Parse(big)
 		if err == nil {
 			t.Errorf("Parse(oversized) expected error, got nil")
+		} else if !strings.Contains(err.Error(), "exceeds maximum size") {
+			t.Errorf("Parse(oversized) error = %q, want message containing \"exceeds maximum size\"", err.Error())
 		}
 	})
 
