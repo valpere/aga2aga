@@ -89,6 +89,7 @@ type FitnessMetrics struct {
 }
 
 // Fitness holds the agent's current fitness objectives and scores.
+// DO_NOT_TOUCH via spawn proposal: intentionally absent from GenomePatch — spec §5.4.
 type Fitness struct {
 	Objectives FitnessMetrics `yaml:"objectives,omitempty"`
 }
@@ -109,12 +110,14 @@ type MutationPolicy struct {
 }
 
 // RetirementPolicy defines when an agent should be automatically retired.
+// DO_NOT_TOUCH via spawn proposal: intentionally absent from GenomePatch — spec §5.4.
 type RetirementPolicy struct {
 	IfBelowFitness float64 `yaml:"if_below_fitness,omitempty"`
 	MinEvaluations int     `yaml:"min_evaluations,omitempty"`
 }
 
 // SandboxPolicy controls constraints for agents in sandbox status.
+// DO_NOT_TOUCH via spawn proposal: intentionally absent from GenomePatch — spec §5.4.
 type SandboxPolicy struct {
 	MaxTasks           int  `yaml:"max_tasks,omitempty"`
 	CanTouchProduction bool `yaml:"can_touch_production,omitempty"`
@@ -133,6 +136,8 @@ type GenomePatch struct {
 	MemoryPolicy    *MemoryPolicy  `yaml:"memory_policy,omitempty"`
 	Thresholds      *Thresholds    `yaml:"thresholds,omitempty"`
 	Economics       *Economics     `yaml:"economics,omitempty"`
+	// Patch-apply MUST append these to the live Constraints.Soft slice — never replace it.
+	// Removal of existing soft constraints via a spawn proposal is not permitted.
 	SoftConstraints []string       `yaml:"soft_constraints,omitempty"`
 	Tags            []string       `yaml:"tags,omitempty"`
 }

@@ -83,6 +83,10 @@ decision: approved_for_sandbox
 	}
 }
 
+// TestSpawnProposal_GenomePatch_MutableFields verifies that valid mutable fields in
+// genome_patch round-trip correctly through As[SpawnProposal].
+// Flat (non-table-driven): single adversarial fixture whose clarity outweighs the
+// overhead of wrapping in []struct{}. Add a table row if new field coverage is needed.
 func TestSpawnProposal_GenomePatch_MutableFields(t *testing.T) {
 	t.Parallel()
 
@@ -137,6 +141,11 @@ genome_patch:
 	}
 }
 
+// TestSpawnProposal_GenomePatch_DoNotTouchFieldsDropped is a security regression test.
+// It verifies that DO_NOT_TOUCH fields injected into genome_patch YAML are structurally
+// dropped by the typed GenomePatch struct and are never accessible to callers.
+// Flat (non-table-driven): single adversarial payload whose inline YAML is the spec.
+// DO NOT DELETE — this test locks the CWE-915 fix from issue #30.
 func TestSpawnProposal_GenomePatch_DoNotTouchFieldsDropped(t *testing.T) {
 	t.Parallel()
 

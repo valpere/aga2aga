@@ -127,7 +127,8 @@ internal/gateway/ MCP Gateway implementation
 - `Envelope.From` is self-reported; authorization MUST NOT rely on it until Phase 3 (Ed25519)
 - `Document.Extra` is attacker-controlled; never use directly for auth, signing, or lifecycle decisions
 - `As[T]` strips the 13 Envelope yaml keys via `envelopeKeys` map before marshal — attacker cannot shadow Envelope fields in typed structs
-- `SpawnProposal.GenomePatch` remains `map[string]any` — tracked in issue #30 (fix before patch-apply logic)
+- `SpawnProposal.GenomePatch` is typed (`*GenomePatch`) — DO_NOT_TOUCH fields are structurally absent; patch-apply MUST only append to `SoftConstraints`, never replace
+- `PromptPolicy.Style` is `map[string]any` — attacker-controlled; patch-apply MUST sanitise before use (tracked: open issue)
 
 ## Skills and Plugins
 
