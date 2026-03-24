@@ -132,6 +132,21 @@ func TestValidateStructural(t *testing.T) {
 	}
 }
 
+// TestValidate_NilDoc verifies that all three Validate layers handle a nil doc gracefully.
+func TestValidate_NilDoc(t *testing.T) {
+	v := mustNewValidator(t)
+
+	if errs := v.ValidateStructural(nil); len(errs) != 1 || errs[0].Layer != document.LayerStructural {
+		t.Errorf("ValidateStructural(nil) = %v, want 1 structural error", errs)
+	}
+	if errs := v.ValidateSchema(nil); len(errs) != 0 {
+		t.Errorf("ValidateSchema(nil) = %v, want no errors", errs)
+	}
+	if errs := v.ValidateSemantic(nil); len(errs) != 0 {
+		t.Errorf("ValidateSemantic(nil) = %v, want no errors", errs)
+	}
+}
+
 // TestValidateSchema covers Layer 2: JSON Schema 2020-12 validation.
 func TestValidateSchema(t *testing.T) {
 	v := mustNewValidator(t)
