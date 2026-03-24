@@ -8,6 +8,7 @@ var baseEnvelopeFields = [2]string{"type", "version"} //nolint:gochecknoglobals
 // The returned slice is independent — callers cannot affect the authoritative list.
 func BaseEnvelopeFields() []string {
 	s := baseEnvelopeFields
+
 	return s[:]
 }
 
@@ -128,6 +129,7 @@ var registry = map[MessageType]TypeMeta{ //nolint:gochecknoglobals
 // TypeMeta is returned by value — callers cannot mutate the registry.
 func Lookup(mt MessageType) (TypeMeta, bool) {
 	meta, ok := registry[mt]
+
 	return meta, ok
 }
 
@@ -135,8 +137,10 @@ func Lookup(mt MessageType) (TypeMeta, bool) {
 // The returned slice is a copy — callers cannot affect the registry.
 func Registered() []MessageType {
 	out := make([]MessageType, 0, len(registry))
+
 	for mt := range registry {
 		out = append(out, mt)
 	}
+
 	return out
 }

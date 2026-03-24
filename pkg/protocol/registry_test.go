@@ -48,6 +48,7 @@ func TestRegistry_AllTypesPresent(t *testing.T) {
 func TestRegistry_Count(t *testing.T) {
 	want := 24
 	got := len(protocol.Registered())
+
 	if got != want {
 		t.Errorf("registry len = %d, want %d", got, want)
 	}
@@ -71,9 +72,11 @@ func TestProtocolVersion(t *testing.T) {
 func TestBaseEnvelopeFields(t *testing.T) {
 	want := []string{"type", "version"}
 	got := protocol.BaseEnvelopeFields()
+
 	if len(got) != len(want) {
 		t.Fatalf("BaseEnvelopeFields() = %v, want %v", got, want)
 	}
+
 	for i, f := range want {
 		if got[i] != f {
 			t.Errorf("BaseEnvelopeFields()[%d] = %q, want %q", i, got[i], f)
@@ -85,6 +88,7 @@ func TestBaseEnvelopeFields_ReturnsCopy(t *testing.T) {
 	a := protocol.BaseEnvelopeFields()
 	b := protocol.BaseEnvelopeFields()
 	a[0] = "mutated"
+
 	if b[0] == "mutated" {
 		t.Error("BaseEnvelopeFields() returned shared backing array — must return independent copy")
 	}
@@ -130,15 +134,20 @@ func TestRegistry_SpecificTypes(t *testing.T) {
 		meta, ok := protocol.Lookup(tc.mt)
 		if !ok {
 			t.Errorf("registry missing %q", tc.mt)
+
 			continue
 		}
+
 		if meta.SchemaRef != tc.wantSchemaRef {
 			t.Errorf("registry[%q].SchemaRef = %q, want %q", tc.mt, meta.SchemaRef, tc.wantSchemaRef)
 		}
+
 		fieldSet := make(map[string]bool, len(meta.RequiredFields))
+
 		for _, f := range meta.RequiredFields {
 			fieldSet[f] = true
 		}
+
 		for _, f := range tc.wantFields {
 			if !fieldSet[f] {
 				t.Errorf("registry[%q].RequiredFields missing %q", tc.mt, f)
