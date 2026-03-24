@@ -56,6 +56,25 @@ func TestSplitFrontMatter(t *testing.T) {
 			input:   "",
 			wantErr: true,
 		},
+		{
+			name:    "opening delimiter is not bare (---yaml prefix)",
+			input:   "---yaml\ntype: task.request\n---\n",
+			wantErr: true,
+		},
+		{
+			name:     "closing delimiter with prefix is not bare — searches further",
+			input:    "---\ntype: task.request\n---notdelim\nmore: yaml\n---\n",
+			wantYAML: "type: task.request\n---notdelim\nmore: yaml\n",
+			wantBody: "",
+		},
+		{
+			// Regression: indented "  ---" inside a YAML block scalar must not be
+			// treated as a closing delimiter. Only a bare "---" line qualifies.
+			name:     "indented --- in block scalar is not closing delimiter",
+			input:    "---\ntype: task.request\nnote: |-\n  ---not-a-delimiter\n---\n\n## Body\n",
+			wantYAML: "type: task.request\nnote: |-\n  ---not-a-delimiter\n",
+			wantBody: "\n## Body\n",
+		},
 	}
 
 	for _, tc := range tests {
@@ -98,8 +117,8 @@ func TestSplitFrontMatter_Fixtures(t *testing.T) {
 		{fixture: "valid_spawn_proposal.md"},
 		{fixture: "valid_promotion.md"},
 		{fixture: "invalid_no_frontmatter.md", wantErr: true},
-		{fixture: "invalid_missing_type.md"},  // valid delimiters, invalid content
-		{fixture: "invalid_bad_yaml.md"},      // valid delimiters, invalid YAML content
+		{fixture: "invalid_missing_type.md"}, // valid delimiters, invalid content
+		{fixture: "invalid_bad_yaml.md"},     // valid delimiters, invalid YAML content
 	}
 
 	for _, tc := range tests {
@@ -168,7 +187,25 @@ func TestParse(t *testing.T) {
 			fixture: "invalid_bad_yaml.md",
 			wantErr: true,
 		},
+		{
+			// invalid_missing_type.md has valid delimiters and well-formed YAML,
+			// so Parse succeeds with doc.Type == "". Type-presence validation is
+			// the responsibility of the validator (issue #19), not the parser.
+			name:     "missing type field parses successfully",
+			fixture:  "invalid_missing_type.md",
+			wantType: "",
+		},
 	}
+
+	t.Run("oversized document rejected", func(t *testing.T) {
+		t.Parallel()
+
+		big := make([]byte, document.MaxDocumentBytes+1)
+		_, err := document.Parse(big)
+		if err == nil {
+			t.Errorf("Parse(oversized) expected error, got nil")
+		}
+	})
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
