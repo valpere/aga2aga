@@ -120,6 +120,23 @@ type SandboxPolicy struct {
 	CanTouchProduction bool `yaml:"can_touch_production,omitempty"`
 }
 
+// GenomePatch carries only the fields an evolver is permitted to propose changing.
+// DO_NOT_TOUCH fields (agent_id, kind, lineage, identity, constraints.hard,
+// mutation_policy.forbidden) are intentionally absent — see spec §5.4.
+// A patch-apply function MUST reject any attempt to modify fields not present here.
+type GenomePatch struct {
+	Capabilities    *Capabilities  `yaml:"capabilities,omitempty"`
+	Tools           *Tools         `yaml:"tools,omitempty"`
+	ModelPolicy     *ModelPolicy   `yaml:"model_policy,omitempty"`
+	PromptPolicy    *PromptPolicy  `yaml:"prompt_policy,omitempty"`
+	RoutingPolicy   *RoutingPolicy `yaml:"routing_policy,omitempty"`
+	MemoryPolicy    *MemoryPolicy  `yaml:"memory_policy,omitempty"`
+	Thresholds      *Thresholds    `yaml:"thresholds,omitempty"`
+	Economics       *Economics     `yaml:"economics,omitempty"`
+	SoftConstraints []string       `yaml:"soft_constraints,omitempty"`
+	Tags            []string       `yaml:"tags,omitempty"`
+}
+
 // AgentGenome is the complete blueprint for an agent, describing its
 // identity, capabilities, policies, and behavioural constraints.
 //
