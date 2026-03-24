@@ -227,25 +227,44 @@ Post collapsible PR comment if enabled.
 
 ## STEP 9: Auto-merge
 
+The `main` branch requires a PR (ruleset "prs"). Auto-merge is enabled on the repo, so `--auto` queues the merge and GitHub completes it once all required checks pass.
+
 ```bash
 gh pr merge {number} --auto --merge
 ```
 
-`--auto` waits for required CI checks. Resolve conflicts first — `--auto` does not handle them.
+Resolve conflicts before this step — `--auto` does not handle them.
 
-Print final summary table: fixed / escalated / dismissed / deferred / skipped.
+**Wait for merge to complete** (poll, 5-minute timeout):
+```bash
+for i in $(seq 1 60); do
+  STATE=$(gh pr view {number} --repo valpere/aga2aga --json state --jq '.state')
+  [ "$STATE" = "MERGED" ] && break
+  echo "Waiting for merge... ($((i * 5))s)"
+  sleep 5
+done
+STATE=$(gh pr view {number} --repo valpere/aga2aga --json state --jq '.state')
+[ "$STATE" != "MERGED" ] && echo "WARNING: PR not yet merged after 5 minutes — check GitHub Actions"
+```
+
+After confirmed merge, pull main and print final summary table: fixed / escalated / dismissed / deferred / skipped.
+
+```bash
+git checkout main && git pull
+```
 
 ---
 
 ## RULES
 
 1. **Never force-push** — regular `git push` only
-2. **Never modify test files** to make tests pass — fix source code
-3. **Never touch unrelated code** — only files in review comments or Arbiter findings
-4. **4 rounds maximum** — hard stop
-5. **DO_NOT_TOUCH conflicts** — skip and surface to user
-6. **One commit per round** — batch all fixes
-7. **Tests must pass before pushing** — revert breaking fix, continue
-8. **JSON parse failure** — retry once, skip reviewer on second failure
-9. **Provider switch is permanent** — `sed` into config.yaml immediately
-10. **Arbiter always runs** — even if all 3 model rounds stop early
+2. **Never push directly to main** — `main` requires a PR; all commits go on feature branches and merge via `gh pr merge`
+3. **Never modify test files** to make tests pass — fix source code
+4. **Never touch unrelated code** — only files in review comments or Arbiter findings
+5. **4 rounds maximum** — hard stop
+6. **DO_NOT_TOUCH conflicts** — skip and surface to user
+7. **One commit per round** — batch all fixes
+8. **Tests must pass before pushing** — revert breaking fix, continue
+9. **JSON parse failure** — retry once, skip reviewer on second failure
+10. **Provider switch is permanent** — `sed` into config.yaml immediately
+11. **Arbiter always runs** — even if all 3 model rounds stop early
