@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/valpere/aga2aga/pkg/document"
@@ -35,7 +36,7 @@ func newValidateCmd() *cobra.Command {
 			if len(fatal) > 0 {
 				return fmt.Errorf("validation failed: %d error(s)", len(fatal))
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "OK: %s\n", path)
+			fmt.Fprintf(cmd.OutOrStdout(), "OK: %s\n", filepath.Base(path))
 			return nil
 		},
 	}
