@@ -33,7 +33,7 @@ func TestValidate_StrictSemanticError(t *testing.T) {
 		cmd.SetArgs([]string{"validate", "--strict", fixture})
 		err := cmd.Execute()
 		if err == nil {
-			t.Error("Execute() --strict = nil, want error (semantic errors are fatal with --strict)")
+			t.Fatal("Execute() --strict = nil, want error (semantic errors are fatal with --strict)")
 		}
 		combined := stderr.String() + err.Error()
 		if !strings.Contains(combined, "semantic") && !strings.Contains(combined, "transition") {
