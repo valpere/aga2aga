@@ -35,13 +35,18 @@ func (e ValidationError) Error() string {
 
 // Validator performs 3-layer validation of Skills Documents.
 // Construct with NewValidator — zero value is not usable.
+// A Validator is safe for concurrent use after construction.
 type Validator struct {
-	compiler *jsonschema.Compiler
+	// schemas is a read-only map populated at construction time.
+	// All per-type $def schemas are pre-compiled so ValidateSchema never mutates
+	// the compiler — making the Validator safe for concurrent callers.
+	schemas map[protocol.MessageType]*jsonschema.Schema
 }
 
 // NewValidator constructs a Validator from JSON Schema 2020-12 bytes (YAML format).
-// The schemaBytes are converted from YAML to JSON at load time — no runtime YAML parsing
-// on the hot Validate path.
+// The schemaBytes are converted from YAML to JSON at load time and all per-type
+// $def schemas are pre-compiled eagerly — no runtime YAML/JSON parsing or
+// compiler mutation on the hot Validate path.
 func NewValidator(schemaBytes []byte) (*Validator, error) {
 	// Convert YAML schema → JSON for the jsonschema library.
 	var schemaMap any
@@ -63,12 +68,29 @@ func NewValidator(schemaBytes []byte) (*Validator, error) {
 	if err := c.AddResource("aga2aga://schema", jsonValue); err != nil {
 		return nil, fmt.Errorf("NewValidator: add schema resource: %w", err)
 	}
-	// Pre-compile the root schema to catch structural errors at load time.
+	// Compile the root schema to catch structural errors at load time.
 	if _, err := c.Compile("aga2aga://schema"); err != nil {
 		return nil, fmt.Errorf("NewValidator: compile schema: %w", err)
 	}
 
-	return &Validator{compiler: c}, nil
+	// Pre-compile every registered type's $def schema eagerly.
+	// The Compiler is never called after NewValidator returns, making all
+	// subsequent ValidateSchema calls read-only and safe for concurrent use.
+	schemas := make(map[protocol.MessageType]*jsonschema.Schema)
+	for _, mt := range protocol.Registered() {
+		meta, ok := protocol.Lookup(mt)
+		if !ok || meta.SchemaRef == "" {
+			continue
+		}
+		refURL := "aga2aga://schema#/$defs/" + meta.SchemaRef
+		sch, err := c.Compile(refURL)
+		if err != nil {
+			return nil, fmt.Errorf("NewValidator: compile $def %q: %w", meta.SchemaRef, err)
+		}
+		schemas[mt] = sch
+	}
+
+	return &Validator{schemas: schemas}, nil
 }
 
 // ValidateStructural performs Layer 1: required-field checks using protocol.Registry.
@@ -156,25 +178,16 @@ func docHasField(doc *Document, field string) bool {
 
 // ValidateSchema performs Layer 2: JSON Schema 2020-12 validation.
 // Skipped silently for message types with no SchemaRef in the registry.
+// Safe for concurrent use — all schemas are pre-compiled at construction time.
 func (v *Validator) ValidateSchema(doc *Document) []ValidationError {
 	if doc == nil {
 		return nil
 	}
 
-	meta, ok := protocol.Lookup(doc.Type)
-	if !ok || meta.SchemaRef == "" {
+	defSchema, ok := v.schemas[doc.Type]
+	if !ok {
+		// No pre-compiled schema for this type (either unknown or no SchemaRef).
 		return nil
-	}
-
-	// Compile the type-specific $def.
-	// NOTE: the internal refURL is not surfaced in errors to avoid leaking schema internals.
-	refURL := "aga2aga://schema#/$defs/" + meta.SchemaRef
-	defSchema, err := v.compiler.Compile(refURL)
-	if err != nil {
-		return []ValidationError{{
-			Layer:   LayerSchema,
-			Message: fmt.Sprintf("schema unavailable for type %q", string(doc.Type)),
-		}}
 	}
 
 	// Convert the full document to a JSON-typed value for validation.
