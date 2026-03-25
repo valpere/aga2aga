@@ -142,7 +142,9 @@ internal/gateway/ MCP Gateway implementation
 - `Envelope.From` is self-reported; authorization MUST NOT rely on it until Phase 3 (Ed25519)
 - `Document.Extra` is attacker-controlled; never use directly for auth, signing, or lifecycle decisions
 - `As[T]` strips the 13 Envelope yaml keys via `envelopeKeys` map before marshal — attacker cannot shadow Envelope fields in typed structs
-- `Quarantine.FromStatus` / `Retirement.FromStatus` are optional on the wire (`omitempty`); when absent, orchestrator MUST perform state-store lookup before calling `ValidTransition`
+- `Promotion.FromStatus` / `Rollback.FromStatus` / `Quarantine.FromStatus` / `Retirement.FromStatus` are self-reported wire strings (CWE-20); executors MUST derive authoritative state from state-store and call `document.ValidTransition()` — never trust wire values. Quarantine/Retirement `from_status` is optional (`omitempty`); Promotion/Rollback `from_status` is required on wire
+- `Promotion.Reason` / `Rollback.Reason` / `Quarantine.Reason` / `Retirement.Reason` are opaque logging labels — MUST NOT influence transition logic
+- `RecombineProposal.CandidateID` and `ParentIDs` are self-reported; executors MUST verify against state-store before genome creation
 - Semantic validator calls `ValidTransition` for quarantine/retirement when `from_status` is present; schema guards the enum
 - `SpawnProposal.GenomePatch` is typed (`*GenomePatch`) — DO_NOT_TOUCH fields are structurally absent; patch-apply MUST only append to `SoftConstraints`, never replace
 - `PromptPolicy.Style` is `map[string]any` — attacker-controlled (open vocab per spec §4.3); callers MUST sanitise before auth/signing/lifecycle use (annotated in `types_genome.go`)
