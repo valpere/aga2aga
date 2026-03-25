@@ -17,7 +17,7 @@ import (
 func TestRedisTransport_ImplementsInterface(t *testing.T) {
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	var _ transport.Transport = redistransport.New(client, redistransport.Options{})
 }
@@ -42,10 +42,10 @@ func buildTaskRequest(t *testing.T) *document.Document {
 func TestRedisTransport_Publish(t *testing.T) {
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	rt := redistransport.New(client, redistransport.Options{})
-	defer rt.Close()
+	defer func() { _ = rt.Close() }()
 
 	doc := buildTaskRequest(t)
 	if err := rt.Publish(context.Background(), "agent.tasks.test", doc); err != nil {
@@ -68,12 +68,12 @@ func TestRedisTransport_Publish(t *testing.T) {
 func TestRedisTransport_Subscribe_RoundTrip(t *testing.T) {
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	rt := redistransport.New(client, redistransport.Options{
 		BlockTimeout: 100 * time.Millisecond,
 	})
-	defer rt.Close()
+	defer func() { _ = rt.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -95,8 +95,8 @@ func TestRedisTransport_Subscribe_RoundTrip(t *testing.T) {
 		if !ok {
 			t.Fatal("channel closed before delivery")
 		}
-		if d.Doc.Envelope.ID != doc.Envelope.ID {
-			t.Errorf("delivery doc ID = %q, want %q", d.Doc.Envelope.ID, doc.Envelope.ID)
+		if d.Doc.ID != doc.ID {
+			t.Errorf("delivery doc ID = %q, want %q", d.Doc.ID, doc.ID)
 		}
 		if d.MsgID == "" {
 			t.Error("delivery MsgID is empty")
@@ -112,12 +112,12 @@ func TestRedisTransport_Subscribe_RoundTrip(t *testing.T) {
 func TestRedisTransport_Ack_RemovesFromPEL(t *testing.T) {
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	rt := redistransport.New(client, redistransport.Options{
 		BlockTimeout: 100 * time.Millisecond,
 	})
-	defer rt.Close()
+	defer func() { _ = rt.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -174,10 +174,10 @@ func TestRedisTransport_Ack_RemovesFromPEL(t *testing.T) {
 func TestRedisTransport_Subscribe_ConsumerGroupIdempotent(t *testing.T) {
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	rt := redistransport.New(client, redistransport.Options{BlockTimeout: 50 * time.Millisecond})
-	defer rt.Close()
+	defer func() { _ = rt.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -195,10 +195,10 @@ func TestRedisTransport_Subscribe_ConsumerGroupIdempotent(t *testing.T) {
 func TestRedisTransport_Subscribe_ContextCancellation(t *testing.T) {
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	rt := redistransport.New(client, redistransport.Options{BlockTimeout: 50 * time.Millisecond})
-	defer rt.Close()
+	defer func() { _ = rt.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ch, err := rt.Subscribe(ctx, "agent.tasks.cancel")
@@ -221,10 +221,10 @@ func TestRedisTransport_Subscribe_ContextCancellation(t *testing.T) {
 func TestRedisTransport_Subscribe_MalformedEntrySkipped(t *testing.T) {
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	rt := redistransport.New(client, redistransport.Options{BlockTimeout: 100 * time.Millisecond})
-	defer rt.Close()
+	defer func() { _ = rt.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -263,7 +263,7 @@ func TestRedisTransport_Subscribe_MalformedEntrySkipped(t *testing.T) {
 func TestRedisTransport_Close_StopsSubscription(t *testing.T) {
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	rt := redistransport.New(client, redistransport.Options{BlockTimeout: 50 * time.Millisecond})
 
@@ -273,7 +273,7 @@ func TestRedisTransport_Close_StopsSubscription(t *testing.T) {
 		t.Fatalf("Subscribe() error = %v", err)
 	}
 
-	rt.Close()
+	_ = rt.Close()
 
 	select {
 	case _, ok := <-ch:
