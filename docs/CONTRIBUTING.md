@@ -128,7 +128,7 @@ If you believe a DO_NOT_TOUCH item needs to change, open an issue and discuss th
 
 ```
 cmd/gateway/      MCP Gateway binary (Phase 2)
-cmd/aga/          CLI tool (validate, create, inspect)
+cmd/aga2aga/          CLI tool (validate, create, inspect)
 pkg/document/     Skills Document parser, validator, builder, lifecycle
 pkg/protocol/     Message type constants and registry
 pkg/transport/    Transport interface (Redis/Gossip implementations: future)

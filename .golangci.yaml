@@ -48,11 +48,11 @@ linters:
       - path: "pkg/document"
         linters: [wrapcheck]
       # errcheck: defer f.Close() on read-only CLI file opens — close errors are harmless here.
-      - path: "cmd/aga"
+      - path: "cmd/aga2aga"
         linters: [errcheck]
         text: "f\\.Close"
       # errcheck: fmt.Fprint*/fmt.Fprintln to stdout/stderr in CLI commands — checking print
       # errors in a terminal CLI adds noise without value (pipe failures surface elsewhere).
-      - path: "cmd/aga"
+      - path: "cmd/aga2aga"
         linters: [errcheck]
         text: "fmt\\.Fprint"

@@ -16,7 +16,7 @@ Goal: parse, validate, and create all 24 Skills Document message types.
 - [x] `pkg/document` — Fluent `Builder` with sticky-error guard and full validation on `Build()`
 - [x] `pkg/document` — Lifecycle state machine: 11 states, `ValidTransition`, `AllowedTransitions`
 - [x] `pkg/document` — Typed structs for all 24 message types (task, genome, lifecycle, spawn, evaluation)
-- [x] `cmd/aga` — `aga validate`, `aga create`, `aga inspect` CLI tool
+- [x] `cmd/aga2aga` — `aga2aga validate`, `aga2aga create`, `aga2aga inspect` CLI tool
 - [x] Stub interfaces for future phases: `pkg/transport`, `pkg/identity`, `pkg/negotiation`
 - [x] CI pipeline: golangci-lint v2, coverage reporting, go mod tidy drift check
 - [x] 100+ tests, all green

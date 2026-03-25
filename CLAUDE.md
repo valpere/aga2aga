@@ -99,7 +99,7 @@ Fitness is a weighted score (quality 35%, safety 15%, reliability 20%, latency 1
 
 ```
 cmd/gateway/   MCP Gateway binary
-cmd/aga/       CLI tool                                      ← DONE (issue #21)
+cmd/aga2aga/       CLI tool                                      ← DONE (issue #21)
 pkg/document/  Skills Document parser, validator, builder   ← DONE (Phase 1)
 pkg/protocol/  Message types and registry                   ← DONE (issue #15)
 pkg/transport/ Transport abstraction (Redis, Gossip)
@@ -137,11 +137,11 @@ internal/gateway/ MCP Gateway implementation
 - `pkg/identity` — `Identity` struct (`Pseudonym`, `PublicKey ed25519.PublicKey`); `Signer` interface: `Sign`, `Verify(data, sig []byte) (bool, error)` (error-aware for config faults, CWE-252)
 - `pkg/negotiation` — `NegotiationState` type; 8 constants derived from `pkg/protocol` (no drift); `NegotiationTransition` stub (always false, NOT for gate use before Phase 4)
 
-#### Implemented: cmd/aga
+#### Implemented: cmd/aga2aga
 
-- `aga validate <file>` — 3-layer validation; `--strict` flag
-- `aga create <type>` — build any registered message type via `--id/--from/--to/--exec-id/--field/--out`
-- `aga inspect <file>` — print envelope fields; `--format text|json`; JSON output nests `Extra` under `"extra"` key
+- `aga2aga validate <file>` — 3-layer validation; `--strict` flag
+- `aga2aga create <type>` — build any registered message type via `--id/--from/--to/--exec-id/--field/--out`
+- `aga2aga inspect <file>` — print envelope fields; `--format text|json`; JSON output nests `Extra` under `"extra"` key
 - `readAndParseFile` helper (`helpers.go`) — shared open/size-check/parse; `ErrDocumentTooLarge` sentinel for `errors.Is` testing; `filepath.EvalSymlinks` guard (CWE-22/61); path is CLI-only (SECURITY godoc)
 
 #### Security invariants (pkg/document)

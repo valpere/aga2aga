@@ -44,7 +44,7 @@ phases:
       - "#18: pkg/document/lifecycle.go"
       - "#19: pkg/document/validator.go + schema"
       - "#20: pkg/document/builder.go"
-      - "#21: cmd/aga/ CLI"
+      - "#21: cmd/aga2aga/ CLI"
       - "#22: transport/identity/negotiation stubs"
     skills:
       - aga2aga-protocol
@@ -55,14 +55,14 @@ phases:
     commands:
       - go test ./pkg/document/...
       - go test ./pkg/protocol/...
-      - go run ./cmd/aga validate tests/testdata/valid_genome.md
+      - go run ./cmd/aga2aga validate tests/testdata/valid_genome.md
     components:
       - pkg/protocol/
       - pkg/document/
       - pkg/transport/      # stub interface only
       - pkg/identity/       # stub interface only
       - pkg/negotiation/    # stub types only
-      - cmd/aga/
+      - cmd/aga2aga/
       - tests/testdata/
 
   phase-2-gateway:
