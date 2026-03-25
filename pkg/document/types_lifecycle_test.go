@@ -7,6 +7,137 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// TestLifecycle_WireFieldsAreAttackerControlled is a security surface documentation test.
+// FromStatus and ToStatus on lifecycle types are self-reported wire strings — the parse
+// layer accepts any string value verbatim. Executors MUST derive authoritative state from
+// a trusted state-store and call lifecycle.ValidTransition(), never trusting wire values.
+// Reason is an opaque logging label — MUST NOT influence transition logic.
+// This test locks the open-wire-string contract.
+// DO NOT DELETE — documents CWE-20 surface from issue #39.
+func TestLifecycle_WireFieldsAreAttackerControlled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		checkFn func(t *testing.T, doc *document.Document)
+	}{
+		{
+			name: "Promotion: attacker-injected from_status/to_status preserved verbatim",
+			raw: `type: agent.promotion
+version: v1
+id: msg-1
+from: attacker
+target_agent: agent-1
+from_status: attacker-injected-status
+to_status: attacker-injected-to
+`,
+			checkFn: func(t *testing.T, doc *document.Document) {
+				t.Helper()
+				p, err := document.As[document.Promotion](doc)
+				if err != nil {
+					t.Fatalf("As[Promotion]() error = %v", err)
+				}
+				if p.FromStatus != "attacker-injected-status" {
+					t.Errorf("FromStatus = %q, want attacker-injected-status — open-wire contract broken", p.FromStatus)
+				}
+				if p.ToStatus != "attacker-injected-to" {
+					t.Errorf("ToStatus = %q, want attacker-injected-to — open-wire contract broken", p.ToStatus)
+				}
+			},
+		},
+		{
+			name: "Rollback: attacker-injected from_status/to_status preserved verbatim",
+			raw: `type: agent.rollback
+version: v1
+id: msg-2
+from: attacker
+target_agent: agent-1
+from_status: injected-from
+to_status: injected-to
+reason: "DROP TABLE agents"
+`,
+			checkFn: func(t *testing.T, doc *document.Document) {
+				t.Helper()
+				r, err := document.As[document.Rollback](doc)
+				if err != nil {
+					t.Fatalf("As[Rollback]() error = %v", err)
+				}
+				if r.FromStatus != "injected-from" {
+					t.Errorf("FromStatus = %q, want injected-from — open-wire contract broken", r.FromStatus)
+				}
+				if r.ToStatus != "injected-to" {
+					t.Errorf("ToStatus = %q, want injected-to — open-wire contract broken", r.ToStatus)
+				}
+				if r.Reason == "" {
+					t.Error("Reason is empty — open-wire contract: arbitrary reason strings must be preserved")
+				}
+			},
+		},
+		{
+			name: "Quarantine: attacker-injected from_status preserved; reason is opaque label",
+			raw: `type: agent.quarantine
+version: v1
+id: msg-3
+from: attacker
+target_agent: agent-1
+reason: <script>alert(1)</script>
+from_status: injected-state
+`,
+			checkFn: func(t *testing.T, doc *document.Document) {
+				t.Helper()
+				q, err := document.As[document.Quarantine](doc)
+				if err != nil {
+					t.Fatalf("As[Quarantine]() error = %v", err)
+				}
+				if q.FromStatus != "injected-state" {
+					t.Errorf("FromStatus = %q, want injected-state — open-wire contract broken", q.FromStatus)
+				}
+				if q.Reason == "" {
+					t.Error("Reason is empty — open-wire contract: arbitrary reason strings must be preserved")
+				}
+			},
+		},
+		{
+			name: "Retirement: attacker-injected from_status preserved; reason is opaque label",
+			raw: `type: agent.retirement
+version: v1
+id: msg-4
+from: attacker
+target_agent: agent-1
+reason: $(rm -rf /)
+from_status: injected-state
+`,
+			checkFn: func(t *testing.T, doc *document.Document) {
+				t.Helper()
+				r, err := document.As[document.Retirement](doc)
+				if err != nil {
+					t.Fatalf("As[Retirement]() error = %v", err)
+				}
+				if r.FromStatus != "injected-state" {
+					t.Errorf("FromStatus = %q, want injected-state — open-wire contract broken", r.FromStatus)
+				}
+				if r.Reason == "" {
+					t.Error("Reason is empty — open-wire contract: arbitrary reason strings must be preserved")
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var doc document.Document
+			if err := yaml.Unmarshal([]byte(tc.raw), &doc); err != nil {
+				t.Fatalf("yaml.Unmarshal error = %v", err)
+			}
+
+			tc.checkFn(t, &doc)
+		})
+	}
+}
+
 func TestPromotion_UnmarshalYAML(t *testing.T) {
 	t.Parallel()
 
