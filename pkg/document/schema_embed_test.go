@@ -1,6 +1,7 @@
 package document_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/valpere/aga2aga/pkg/document"
@@ -35,5 +36,35 @@ func TestDefaultValidator_ValidatesKnownGoodDocument(t *testing.T) {
 
 	if errs := v.Validate(doc); len(errs) != 0 {
 		t.Errorf("DefaultValidator().Validate(valid_genome) = %v, want no errors", errs)
+	}
+}
+
+// TestDefaultValidator_ConcurrentValidation verifies that the shared singleton Validator
+// is safe for concurrent use — no data races in ValidateSchema across goroutines.
+func TestDefaultValidator_ConcurrentValidation(t *testing.T) {
+	v, err := document.DefaultValidator()
+	if err != nil {
+		t.Fatalf("DefaultValidator() error = %v", err)
+	}
+
+	raw := mustReadFile("../../tests/testdata/valid_genome.md")
+	doc := mustParse(t, raw)
+
+	const concurrency = 20
+	errc := make(chan error, concurrency)
+	for range concurrency {
+		go func() {
+			errs := v.ValidateSchema(doc)
+			if len(errs) != 0 {
+				errc <- fmt.Errorf("ValidateSchema() unexpected errors: %v", errs)
+				return
+			}
+			errc <- nil
+		}()
+	}
+	for range concurrency {
+		if err := <-errc; err != nil {
+			t.Error(err)
+		}
 	}
 }
