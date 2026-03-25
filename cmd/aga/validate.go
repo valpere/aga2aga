@@ -2,9 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/valpere/aga2aga/pkg/document"
@@ -19,21 +16,9 @@ func newValidateCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
-			f, err := os.Open(path)
+			doc, err := readAndParseFile(path)
 			if err != nil {
-				return fmt.Errorf("open %q: %w", filepath.Base(path), err)
-			}
-			defer f.Close()
-			raw, err := io.ReadAll(io.LimitReader(f, document.MaxDocumentBytes+1))
-			if err != nil {
-				return fmt.Errorf("read %q: %w", filepath.Base(path), err)
-			}
-			if len(raw) > document.MaxDocumentBytes {
-				return fmt.Errorf("document exceeds maximum size (%d bytes)", document.MaxDocumentBytes)
-			}
-			doc, err := document.Parse(raw)
-			if err != nil {
-				return fmt.Errorf("parse %q: %w", filepath.Base(path), err)
+				return err
 			}
 			v, err := document.DefaultValidator()
 			if err != nil {
