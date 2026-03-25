@@ -183,7 +183,7 @@ func (s *SQLiteStore) ListAgents(ctx context.Context, orgID string) ([]admin.Reg
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var agents []admin.RegisteredAgent
 	for rows.Next() {
 		var a admin.RegisteredAgent
@@ -242,7 +242,7 @@ func (s *SQLiteStore) ListPolicies(ctx context.Context, orgID string) ([]admin.C
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var policies []admin.CommunicationPolicy
 	for rows.Next() {
 		var p admin.CommunicationPolicy
@@ -317,7 +317,7 @@ func (s *SQLiteStore) ListAuditEvents(ctx context.Context, orgID string, limit i
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var events []admin.AuditEvent
 	for rows.Next() {
 		var e admin.AuditEvent
@@ -358,7 +358,7 @@ func (s *SQLiteStore) ListAPIKeys(ctx context.Context, orgID string) ([]admin.AP
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var keys []admin.APIKey
 	for rows.Next() {
 		var k admin.APIKey

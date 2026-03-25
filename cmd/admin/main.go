@@ -42,7 +42,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("open store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	if err := ensureDefaultAdmin(store); err != nil {
 		log.Fatalf("seed admin: %v", err)

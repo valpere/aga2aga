@@ -20,12 +20,6 @@ type apiKeyListPage struct {
 	NewKey  string // raw key shown once after creation; empty otherwise
 }
 
-type apiKeyNewPage struct {
-	Page    string
-	Session sessionData
-	Error   string
-}
-
 func (srv *Server) handleAPIKeyList(w http.ResponseWriter, r *http.Request) {
 	sd := sessionFromCtx(r)
 	keys, err := srv.store.ListAPIKeys(r.Context(), sd.OrgID)
