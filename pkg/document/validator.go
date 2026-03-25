@@ -264,8 +264,8 @@ func collectSchemaErrors(ve *jsonschema.ValidationError, out *[]ValidationError)
 }
 
 // ValidateSemantic performs Layer 3: semantic protocol rule checks.
-// Currently validates lifecycle transition legality and self-promotion denial
-// for agent.promotion and agent.rollback messages.
+// Validates lifecycle transition legality for promotion, rollback, quarantine,
+// and retirement messages. Validates self-promotion denial for agent.promotion.
 func (v *Validator) ValidateSemantic(doc *Document) []ValidationError {
 	if doc == nil {
 		return nil
@@ -274,8 +274,32 @@ func (v *Validator) ValidateSemantic(doc *Document) []ValidationError {
 	switch doc.Type {
 	case protocol.AgentPromotion, protocol.AgentRollback:
 		return validateLifecycleTransition(doc)
+	case protocol.AgentQuarantine:
+		return validateTerminalTransition(doc, StateQuarantined)
+	case protocol.AgentRetirement:
+		return validateTerminalTransition(doc, StateRetired)
 	}
 
+	return nil
+}
+
+// validateTerminalTransition validates from_status → toState when from_status is
+// present on the wire. When absent (omitempty), no error is returned — the
+// orchestrator MUST perform a state-store lookup before applying the transition.
+func validateTerminalTransition(doc *Document, toState LifecycleState) []ValidationError {
+	fromStr, _ := doc.Extra["from_status"].(string)
+	if fromStr == "" {
+		// from_status is optional for quarantine/retirement; orchestrator handles lookup.
+		return nil
+	}
+	from := LifecycleState(fromStr)
+	if !ValidTransition(from, toState) {
+		return []ValidationError{{
+			Layer:   LayerSemantic,
+			Field:   "from_status",
+			Message: fmt.Sprintf("transition %q → %q is not permitted by spec §16", from, toState),
+		}}
+	}
 	return nil
 }
 

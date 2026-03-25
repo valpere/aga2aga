@@ -1,9 +1,10 @@
 // DO_NOT_TOUCH: lifecycle transition table — spec §16 — modifying breaks wire compatibility.
 //
 // SECURITY: ValidTransition enforces the spec §16 table but is not called automatically
-// on document parse. Every code path that applies a Promotion or Rollback document MUST
-// call ValidTransition(from, to) before mutating agent state. This enforcement will be
-// centralised in the validator layer (issue #19).
+// on document parse. Every code path that applies a Promotion, Rollback, Quarantine, or
+// Retirement document MUST call ValidTransition(from, to) before mutating agent state.
+// The semantic validator (Layer 3) enforces this when from_status is present on the wire;
+// when absent, the orchestrator MUST perform a state-store lookup.
 package document
 
 // LifecycleState is a named string type for agent lifecycle states.

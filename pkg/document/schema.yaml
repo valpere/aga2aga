@@ -308,6 +308,8 @@ $defs:
         $ref: "#/$defs/nonemptyString"
       reason:
         $ref: "#/$defs/nonemptyString"
+      from_status:
+        $ref: "#/$defs/lifecycleState"
       retirement_mode:
         type: string
       replace_with:
@@ -321,6 +323,8 @@ $defs:
         $ref: "#/$defs/nonemptyString"
       reason:
         $ref: "#/$defs/nonemptyString"
+      from_status:
+        $ref: "#/$defs/lifecycleState"
       investigation_required:
         type: boolean
 

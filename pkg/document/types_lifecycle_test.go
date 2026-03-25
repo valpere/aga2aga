@@ -142,6 +142,116 @@ reason: quality score below threshold
 	}
 }
 
+func TestQuarantine_FromStatus(t *testing.T) {
+	t.Parallel()
+
+	raw := `type: agent.quarantine
+version: v1
+id: msg-quarantine-2
+from: safety-auditor
+target_agent: agent-rogue-7
+reason: safety violation
+from_status: active
+`
+
+	var doc document.Document
+
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("yaml.Unmarshal error = %v", err)
+	}
+
+	quarantine, err := document.As[document.Quarantine](&doc)
+	if err != nil {
+		t.Fatalf("As[Quarantine]() error = %v", err)
+	}
+
+	if quarantine.FromStatus != "active" {
+		t.Errorf("FromStatus = %q, want active", quarantine.FromStatus)
+	}
+}
+
+func TestQuarantine_FromStatus_Optional(t *testing.T) {
+	t.Parallel()
+
+	raw := `type: agent.quarantine
+version: v1
+id: msg-quarantine-3
+from: safety-auditor
+target_agent: agent-rogue-7
+reason: safety violation
+`
+
+	var doc document.Document
+
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("yaml.Unmarshal error = %v", err)
+	}
+
+	quarantine, err := document.As[document.Quarantine](&doc)
+	if err != nil {
+		t.Fatalf("As[Quarantine]() error = %v", err)
+	}
+
+	if quarantine.FromStatus != "" {
+		t.Errorf("FromStatus = %q, want empty (omitempty)", quarantine.FromStatus)
+	}
+}
+
+func TestRetirement_FromStatus(t *testing.T) {
+	t.Parallel()
+
+	raw := `type: agent.retirement
+version: v1
+id: msg-retire-2
+from: population-manager
+target_agent: agent-old-99
+reason: superseded
+from_status: active
+`
+
+	var doc document.Document
+
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("yaml.Unmarshal error = %v", err)
+	}
+
+	retirement, err := document.As[document.Retirement](&doc)
+	if err != nil {
+		t.Fatalf("As[Retirement]() error = %v", err)
+	}
+
+	if retirement.FromStatus != "active" {
+		t.Errorf("FromStatus = %q, want active", retirement.FromStatus)
+	}
+}
+
+func TestRetirement_FromStatus_Optional(t *testing.T) {
+	t.Parallel()
+
+	raw := `type: agent.retirement
+version: v1
+id: msg-retire-3
+from: population-manager
+target_agent: agent-old-99
+reason: superseded
+`
+
+	var doc document.Document
+
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("yaml.Unmarshal error = %v", err)
+	}
+
+	retirement, err := document.As[document.Retirement](&doc)
+	if err != nil {
+		t.Fatalf("As[Retirement]() error = %v", err)
+	}
+
+	if retirement.FromStatus != "" {
+		t.Errorf("FromStatus = %q, want empty (omitempty)", retirement.FromStatus)
+	}
+}
+
 func TestRetirement_UnmarshalYAML(t *testing.T) {
 	t.Parallel()
 

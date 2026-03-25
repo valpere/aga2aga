@@ -260,6 +260,44 @@ func TestValidateSemantic(t *testing.T) {
 			raw:        mustReadFile("../../tests/testdata/valid_task_request.md"),
 			wantErrors: 0,
 		},
+		{
+			name: "quarantine active→quarantined with from_status passes",
+			raw: []byte("---\ntype: agent.quarantine\nversion: v1\nid: msg-1\nfrom: safety-auditor\n" +
+				"target_agent: agent-1\nreason: safety violation\nfrom_status: active\n---\n"),
+			wantErrors: 0,
+		},
+		{
+			name: "quarantine invalid from_status proposed→quarantined rejected",
+			raw: []byte("---\ntype: agent.quarantine\nversion: v1\nid: msg-1\nfrom: safety-auditor\n" +
+				"target_agent: agent-1\nreason: safety violation\nfrom_status: proposed\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "transition",
+		},
+		{
+			name: "quarantine without from_status passes (orchestrator handles lookup)",
+			raw: []byte("---\ntype: agent.quarantine\nversion: v1\nid: msg-1\nfrom: safety-auditor\n" +
+				"target_agent: agent-1\nreason: safety violation\n---\n"),
+			wantErrors: 0,
+		},
+		{
+			name: "retirement active→retired with from_status passes",
+			raw: []byte("---\ntype: agent.retirement\nversion: v1\nid: msg-1\nfrom: pop-manager\n" +
+				"target_agent: agent-1\nreason: superseded\nfrom_status: active\n---\n"),
+			wantErrors: 0,
+		},
+		{
+			name: "retirement invalid from_status proposed→retired rejected",
+			raw: []byte("---\ntype: agent.retirement\nversion: v1\nid: msg-1\nfrom: pop-manager\n" +
+				"target_agent: agent-1\nreason: superseded\nfrom_status: proposed\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "transition",
+		},
+		{
+			name: "retirement without from_status passes (orchestrator handles lookup)",
+			raw: []byte("---\ntype: agent.retirement\nversion: v1\nid: msg-1\nfrom: pop-manager\n" +
+				"target_agent: agent-1\nreason: superseded\n---\n"),
+			wantErrors: 0,
+		},
 	}
 
 	for _, tc := range tests {
