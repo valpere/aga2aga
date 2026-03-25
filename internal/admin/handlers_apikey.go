@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -70,7 +71,10 @@ func (srv *Server) handleAPIKeyNewPost(w http.ResponseWriter, r *http.Request) {
 	recordAudit(r.Context(), srv.store, sd, "apikey.create", "apikey", k.ID,
 		fmt.Sprintf("created API key %q with role %s", name, role))
 
-	keys, _ := srv.store.ListAPIKeys(r.Context(), sd.OrgID)
+	keys, err := srv.store.ListAPIKeys(r.Context(), sd.OrgID)
+	if err != nil {
+		log.Printf("handleAPIKeyNewPost: failed to list API keys for org %q: %v", sd.OrgID, err)
+	}
 	srv.render(w, "apikeys.html", apiKeyListPage{
 		Page: "apikeys", Session: sd, Keys: keys, NewKey: rawKey,
 	})
