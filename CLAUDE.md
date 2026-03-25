@@ -99,8 +99,8 @@ Fitness is a weighted score (quality 35%, safety 15%, reliability 20%, latency 1
 
 ```
 cmd/gateway/   MCP Gateway binary
-cmd/aga/       CLI tool
-pkg/document/  Skills Document parser, validator, builder   ← Phase 1 in progress
+cmd/aga/       CLI tool                                      ← DONE (issue #21)
+pkg/document/  Skills Document parser, validator, builder   ← DONE (Phase 1)
 pkg/protocol/  Message types and registry                   ← DONE (issue #15)
 pkg/transport/ Transport abstraction (Redis, Gossip)
 pkg/identity/  Ed25519 identity and trust
@@ -121,12 +121,27 @@ internal/gateway/ MCP Gateway implementation
 - `Document` — `Envelope` + `Extra map[string]any` + `Body` + `Raw`
 - `As[T]` — YAML round-trip to typed struct; strips all Envelope keys from `Extra` first (injection defence)
 - Typed structs for all 24 message types across 5 files (`types_task`, `types_genome`, `types_lifecycle`, `types_spawn`, `types_evaluation`)
+- Parser: `Parse`, `Serialize`, `SplitFrontMatter`; `MaxDocumentBytes = 64 KiB` hard limit
+- Lifecycle: `ValidTransition`, `AllowedTransitions`, 11 `LifecycleState` constants (DO_NOT_TOUCH)
+- Validator: `ValidateStructural` / `ValidateSchema` / `ValidateSemantic` / `Validate` (3-layer composite); `DefaultValidator()`
+  - Semantic layer enforces `ValidTransition` for promotion, rollback, quarantine, and retirement
+  - `--strict` mode: semantic errors are warnings by default, fatal with `--strict`
+- Builder: `NewBuilder` + fluent setters (`ID`, `From`, `To`, `ExecID`, `Status`, `InReplyTo`, `ThreadID`, `Body`, `Field`); `Build()` runs full validation; sticky-error guard rejects reserved envelope keys in `Field()`
+  - Convenience: `NewGenomeBuilder`, `NewSpawnProposalBuilder`, `NewTaskRequestBuilder`
+
+#### Implemented: cmd/aga
+
+- `aga validate <file>` — 3-layer validation; `--strict` flag
+- `aga create <type>` — build any registered message type via `--id/--from/--to/--exec-id/--field/--out`
+- `aga inspect <file>` — print envelope fields; `--format text|json`; JSON output nests `Extra` under `"extra"` key
 
 #### Security invariants (pkg/document)
 
 - `Envelope.From` is self-reported; authorization MUST NOT rely on it until Phase 3 (Ed25519)
 - `Document.Extra` is attacker-controlled; never use directly for auth, signing, or lifecycle decisions
 - `As[T]` strips the 13 Envelope yaml keys via `envelopeKeys` map before marshal — attacker cannot shadow Envelope fields in typed structs
+- `Quarantine.FromStatus` / `Retirement.FromStatus` are optional on the wire (`omitempty`); when absent, orchestrator MUST perform state-store lookup before calling `ValidTransition`
+- Semantic validator calls `ValidTransition` for quarantine/retirement when `from_status` is present; schema guards the enum
 - `SpawnProposal.GenomePatch` is typed (`*GenomePatch`) — DO_NOT_TOUCH fields are structurally absent; patch-apply MUST only append to `SoftConstraints`, never replace
 - `PromptPolicy.Style` is `map[string]any` — attacker-controlled (open vocab per spec §4.3); callers MUST sanitise before auth/signing/lifecycle use (annotated in `types_genome.go`)
 
