@@ -2,6 +2,7 @@ package document
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/valpere/aga2aga/pkg/protocol"
@@ -11,13 +12,17 @@ import (
 // Builder is NOT thread-safe — do not share across goroutines.
 // Call Build() to obtain a validated *Document.
 type Builder struct {
-	msgType protocol.MessageType
-	id      string
-	from    string
-	to      StringOrList
-	execID  string
-	body    string
-	extra   map[string]any
+	msgType    protocol.MessageType
+	id         string
+	from       string
+	to         StringOrList
+	execID     string
+	status     string
+	inReplyTo  string
+	threadID   string
+	body       string
+	extra      map[string]any
+	fieldErr   error // sticky error set by Field() for reserved key violations
 }
 
 // NewBuilder creates a Builder for the given message type.
@@ -56,10 +61,41 @@ func (b *Builder) ExecID(execID string) *Builder {
 	return b
 }
 
+// Status sets the status envelope field. Returns the Builder for chaining.
+// Use this instead of Field("status", ...) — status is an envelope field and
+// must be set on Envelope.Status; Field("status",...) causes a yaml.Marshal panic.
+func (b *Builder) Status(status string) *Builder {
+	b.status = status
+	return b
+}
+
+// InReplyTo sets the in_reply_to envelope field. Returns the Builder for chaining.
+// Use this instead of Field("in_reply_to", ...) for the same reason as ExecID and Status.
+func (b *Builder) InReplyTo(inReplyTo string) *Builder {
+	b.inReplyTo = inReplyTo
+	return b
+}
+
+// ThreadID sets the thread_id envelope field. Returns the Builder for chaining.
+// Use this instead of Field("thread_id", ...) for the same reason as ExecID and Status.
+func (b *Builder) ThreadID(threadID string) *Builder {
+	b.threadID = threadID
+	return b
+}
+
 // Field sets an arbitrary extra field (type-specific payload).
-// Use for all fields not in the envelope (id, from, to, exec_id, body).
-// Returns the Builder for chaining.
+// Returns the Builder for chaining. Envelope field names (id, from, to, version,
+// exec_id, status, in_reply_to, thread_id, etc.) are rejected with a sticky error
+// returned from Build() — use the dedicated typed setters for those fields.
 func (b *Builder) Field(key string, value any) *Builder {
+	if _, reserved := envelopeKeys[key]; reserved {
+		if b.fieldErr == nil {
+			b.fieldErr = fmt.Errorf(
+				"Field: %q is a reserved envelope key; use the typed setter (e.g. Status(), InReplyTo(), ExecID())",
+				key)
+		}
+		return b
+	}
 	b.extra[key] = value
 	return b
 }
@@ -73,7 +109,12 @@ func (b *Builder) Body(body string) *Builder {
 // Build assembles the Document, auto-fills version: v1 and created_at (RFC3339),
 // then runs full 3-layer validation via DefaultValidator.
 // Returns an error if validation fails — callers cannot produce invalid documents.
+// All validation errors are reported, not just the first.
 func (b *Builder) Build() (*Document, error) {
+	if b.fieldErr != nil {
+		return nil, b.fieldErr
+	}
+
 	doc := &Document{
 		Envelope: Envelope{
 			Type:      b.msgType,
@@ -82,6 +123,9 @@ func (b *Builder) Build() (*Document, error) {
 			From:      b.from,
 			To:        b.to,
 			ExecID:    b.execID,
+			Status:    b.status,
+			InReplyTo: b.inReplyTo,
+			ThreadID:  b.threadID,
 			CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		},
 		Extra: make(map[string]any, len(b.extra)),
@@ -97,16 +141,21 @@ func (b *Builder) Build() (*Document, error) {
 	}
 
 	if errs := v.Validate(doc); len(errs) > 0 {
-		return nil, fmt.Errorf("Build: validation failed: %v", errs[0])
+		msgs := make([]string, len(errs))
+		for i, e := range errs {
+			msgs[i] = e.Error()
+		}
+		return nil, fmt.Errorf("Build: validation failed: %s", strings.Join(msgs, "; "))
 	}
 
 	return doc, nil
 }
 
 // NewGenomeBuilder returns a Builder pre-configured for agent.genome messages.
-// Sets agent_id and kind in Extra. Caller must chain Field() for remaining
-// required genome fields (status, identity, capabilities, tools, model_policy,
+// Sets agent_id and kind in Extra. Caller must chain Status() and Field() for
+// remaining required genome fields (identity, capabilities, tools, model_policy,
 // prompt_policy, routing_policy, thresholds, constraints, mutation_policy).
+// Note: use Status("proposed") not Field("status",...) — status is an envelope field.
 func NewGenomeBuilder(agentID, kind string) *Builder {
 	return NewBuilder(protocol.AgentGenome).
 		Field("agent_id", agentID).

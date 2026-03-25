@@ -285,6 +285,17 @@ func validateLifecycleTransition(doc *Document) []ValidationError {
 	fromStr, _ := doc.Extra["from_status"].(string)
 	toStr, _ := doc.Extra["to_status"].(string)
 
+	// Explicit guard: distinguish "fields missing" from "illegal transition" in
+	// governance logs. The structural layer should already have caught absence, but
+	// this provides defence-in-depth and unambiguous error messages.
+	if fromStr == "" || toStr == "" {
+		return []ValidationError{{
+			Layer:   LayerSemantic,
+			Field:   "from_status/to_status",
+			Message: "from_status and to_status are required for lifecycle transition",
+		}}
+	}
+
 	from := LifecycleState(fromStr)
 	to := LifecycleState(toStr)
 
@@ -321,9 +332,13 @@ func validateLifecycleTransition(doc *Document) []ValidationError {
 
 // Validate runs all three layers and returns all errors (not fail-fast).
 // Callers can filter by ValidationError.Layer to handle each layer independently.
+// If structural validation fails (including unknown message type), schema and semantic
+// layers are skipped — they have no valid basis to run on a structurally broken document.
 func (v *Validator) Validate(doc *Document) []ValidationError {
+	if structural := v.ValidateStructural(doc); len(structural) > 0 {
+		return structural
+	}
 	var errs []ValidationError
-	errs = append(errs, v.ValidateStructural(doc)...)
 	errs = append(errs, v.ValidateSchema(doc)...)
 	errs = append(errs, v.ValidateSemantic(doc)...)
 	return errs

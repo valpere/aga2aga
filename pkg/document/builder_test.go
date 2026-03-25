@@ -3,6 +3,7 @@ package document_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/valpere/aga2aga/pkg/document"
 	"github.com/valpere/aga2aga/pkg/protocol"
@@ -129,8 +130,8 @@ func TestBuilder_AutoCreatedAt(t *testing.T) {
 	if doc.CreatedAt == "" {
 		t.Fatal("CreatedAt should be auto-set")
 	}
-	if !strings.Contains(doc.CreatedAt, "T") {
-		t.Errorf("CreatedAt %q does not look like RFC3339", doc.CreatedAt)
+	if _, parseErr := time.Parse(time.RFC3339, doc.CreatedAt); parseErr != nil {
+		t.Errorf("CreatedAt %q is not valid RFC3339: %v", doc.CreatedAt, parseErr)
 	}
 }
 
@@ -142,6 +143,9 @@ func TestBuilder_Chaining(t *testing.T) {
 		From("a").
 		To("b").
 		ExecID("e1").
+		Status("").
+		InReplyTo("").
+		ThreadID("").
 		Field("step", "s").
 		Body("hello").
 		Build()
@@ -154,16 +158,104 @@ func TestBuilder_Chaining(t *testing.T) {
 	}
 }
 
-// TestNewGenomeBuilder_SetsTypeAndFields verifies the convenience constructor
-// sets agent_id and kind, and returns a validation error (not a panic) for missing
-// genome fields — callers must chain additional Field() calls.
-func TestNewGenomeBuilder_SetsTypeAndFields(t *testing.T) {
+// TestBuilder_Field_RejectsEnvelopeKeys verifies Field() rejects reserved envelope key names.
+func TestBuilder_Field_RejectsEnvelopeKeys(t *testing.T) {
+	reservedKeys := []string{"type", "version", "id", "from", "to", "exec_id",
+		"status", "in_reply_to", "thread_id", "created_at", "signature", "signing_key_id"}
+
+	for _, key := range reservedKeys {
+		t.Run(key, func(t *testing.T) {
+			_, err := minTaskRequest().Field(key, "value").Build()
+			if err == nil {
+				t.Errorf("Build() expected error for reserved key %q, got nil", key)
+			}
+			if !strings.Contains(err.Error(), "reserved envelope key") {
+				t.Errorf("error = %v; want 'reserved envelope key'", err)
+			}
+		})
+	}
+}
+
+// TestBuilder_Status_EnvelopeField verifies Status() sets Envelope.Status correctly.
+func TestBuilder_Status_EnvelopeField(t *testing.T) {
+	doc, err := minTaskRequest().Status("active").Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if doc.Status != "active" {
+		t.Errorf("Status = %q, want active", doc.Status)
+	}
+}
+
+// TestBuilder_InReplyTo_EnvelopeField verifies InReplyTo() sets Envelope.InReplyTo.
+func TestBuilder_InReplyTo_EnvelopeField(t *testing.T) {
+	doc, err := minTaskRequest().InReplyTo("msg-0").Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if doc.InReplyTo != "msg-0" {
+		t.Errorf("InReplyTo = %q, want msg-0", doc.InReplyTo)
+	}
+}
+
+// TestBuilder_ThreadID_EnvelopeField verifies ThreadID() sets Envelope.ThreadID.
+func TestBuilder_ThreadID_EnvelopeField(t *testing.T) {
+	doc, err := minTaskRequest().ThreadID("thread-1").Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if doc.ThreadID != "thread-1" {
+		t.Errorf("ThreadID = %q, want thread-1", doc.ThreadID)
+	}
+}
+
+// TestBuilder_Build_ReportsAllErrors verifies Build() reports all validation errors, not just the first.
+func TestBuilder_Build_ReportsAllErrors(t *testing.T) {
+	_, err := document.NewBuilder(protocol.TaskRequest).Build() // missing id, from, to, exec_id, step
+	if err == nil {
+		t.Fatal("Build() expected error, got nil")
+	}
+	// Multiple errors should appear in the message (separated by "; ").
+	if !strings.Contains(err.Error(), "; ") {
+		t.Errorf("error = %v; want multiple errors separated by '; '", err)
+	}
+}
+
+// TestNewGenomeBuilder_IncompleteReturnsError verifies an incomplete genome build
+// returns a validation error (not a panic) for missing required fields.
+func TestNewGenomeBuilder_IncompleteReturnsError(t *testing.T) {
 	_, err := document.NewGenomeBuilder("agent-1", "reviewer").Build()
 	if err == nil {
 		t.Fatal("expected Build() to fail — genome requires many fields beyond agent_id+kind")
 	}
 	if !strings.Contains(err.Error(), "validation failed") {
 		t.Errorf("error = %v; want validation failure", err)
+	}
+}
+
+// TestNewGenomeBuilder_Type verifies that NewGenomeBuilder produces an agent.genome document type.
+func TestNewGenomeBuilder_Type(t *testing.T) {
+	// Build a minimal valid genome by providing all required fields.
+	doc, err := document.NewGenomeBuilder("agent-1", "reviewer").
+		Status("proposed").
+		Field("identity", map[string]any{"public_key": "pk-abc"}).
+		Field("capabilities", map[string]any{"skills": []any{"review"}}).
+		Field("tools", map[string]any{"allowed": []any{"read", "grep"}}).
+		Field("model_policy", map[string]any{"provider": "anthropic"}).
+		Field("prompt_policy", map[string]any{"profile": "default"}).
+		Field("routing_policy", map[string]any{"accepts": []any{"task.request"}}).
+		Field("thresholds", map[string]any{}).
+		Field("constraints", map[string]any{"hard": []any{"no_exec"}}).
+		Field("mutation_policy", map[string]any{"allowed": []any{"prompt_policy"}}).
+		Build()
+	if err != nil {
+		t.Fatalf("NewGenomeBuilder full build error = %v", err)
+	}
+	if doc.Type != protocol.AgentGenome {
+		t.Errorf("Type = %q, want %q", doc.Type, protocol.AgentGenome)
+	}
+	if doc.Extra["agent_id"] != "agent-1" {
+		t.Errorf("agent_id = %v, want agent-1", doc.Extra["agent_id"])
 	}
 }
 
