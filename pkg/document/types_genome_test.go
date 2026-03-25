@@ -201,6 +201,48 @@ func TestEscalationRule_RoutingPolicy_AttackerControlled(t *testing.T) {
 			},
 		},
 		{
+			// Condition carries a query-language-shaped string — documents that the parse
+			// layer does NOT sanitize or reject expression-like condition strings. Dispatchers
+			// MUST NOT interpret Condition as code or query language (CWE-20).
+			name: "EscalationRule: query-language condition string preserved verbatim",
+			yaml: baseGenomeWithRoutingYAML(`routing_policy:
+  accepts:
+    - task.request
+  escalation_rules:
+    - condition: "fitness_score < 0.5 AND safety_violations > 0"
+      target: safety-auditor
+`),
+			checkFn: func(t *testing.T, genome *document.AgentGenome) {
+				t.Helper()
+				if len(genome.RoutingPolicy.EscalationRules) == 0 {
+					t.Fatal("EscalationRules is empty — open-wire contract broken")
+				}
+				rule := genome.RoutingPolicy.EscalationRules[0]
+				if rule.Condition != "fitness_score < 0.5 AND safety_violations > 0" {
+					t.Errorf("Condition = %q — open-wire contract: query-language condition strings must be preserved verbatim without interpretation", rule.Condition)
+				}
+			},
+		},
+		{
+			// No routing_policy key — verifies zero-value contract: RoutingPolicy fields are
+			// nil slices, not empty allocated slices. Callers checking len(rules)==0 vs rules!=nil
+			// must be aware that absent routing_policy produces nil, not [].
+			name: "absent routing_policy produces zero-value RoutingPolicy",
+			yaml: baseGenomeWithRoutingYAML(""),
+			checkFn: func(t *testing.T, genome *document.AgentGenome) {
+				t.Helper()
+				if genome.RoutingPolicy.Accepts != nil {
+					t.Errorf("Accepts = %v, want nil for absent routing_policy", genome.RoutingPolicy.Accepts)
+				}
+				if genome.RoutingPolicy.DelegatesTo != nil {
+					t.Errorf("DelegatesTo = %v, want nil for absent routing_policy", genome.RoutingPolicy.DelegatesTo)
+				}
+				if genome.RoutingPolicy.EscalationRules != nil {
+					t.Errorf("EscalationRules = %v, want nil for absent routing_policy", genome.RoutingPolicy.EscalationRules)
+				}
+			},
+		},
+		{
 			name: "RoutingPolicy.DelegatesTo: attacker-injected agent IDs preserved verbatim",
 			yaml: baseGenomeWithRoutingYAML(`routing_policy:
   accepts:
@@ -249,17 +291,11 @@ func TestEscalationRule_RoutingPolicy_AttackerControlled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Use document.Parse() — the production wire-parse path — so the test
-			// exercises the same code path as real incoming documents and includes
-			// the MaxDocumentBytes guard.
-			doc, err := document.Parse([]byte("---\n" + tc.yaml + "---\n"))
+			// Use document.ParseAs — the production wire-parse path — so the test
+			// exercises SplitFrontMatter, MaxDocumentBytes, and the full YAML chain.
+			genome, err := document.ParseAs[document.AgentGenome]([]byte("---\n" + tc.yaml + "---\n"))
 			if err != nil {
-				t.Fatalf("Parse() error = %v", err)
-			}
-
-			genome, err := document.As[document.AgentGenome](doc)
-			if err != nil {
-				t.Fatalf("As[AgentGenome]() error = %v", err)
+				t.Fatalf("ParseAs[AgentGenome]() error = %v", err)
 			}
 
 			tc.checkFn(t, genome)
