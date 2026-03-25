@@ -56,7 +56,7 @@ body:
         - "identity (pkg/identity)"
         - "negotiation (pkg/negotiation)"
         - "gateway (internal/gateway)"
-        - "cli (cmd/aga)"
+        - "cli (cmd/aga2aga)"
         - "ci"
     validations:
       required: true

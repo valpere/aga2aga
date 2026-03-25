@@ -303,7 +303,7 @@ Current semantic rules:
 - **Promotion / Rollback:** validates `from_status → to_status` against the lifecycle transition table; denies `from == target_agent` (self-promotion/rollback is forbidden).
 - **Quarantine / Retirement:** validates `from_status → to_status` when `from_status` is present on the wire; always denies `from == target_agent`.
 
-Returns `LayerSemantic` errors. In `--strict` mode (`aga validate --strict`), semantic errors are treated as fatal.
+Returns `LayerSemantic` errors. In `--strict` mode (`aga2aga validate --strict`), semantic errors are treated as fatal.
 
 #### func (*Validator) Validate
 
@@ -638,16 +638,16 @@ func NegotiationTransition(from, to NegotiationState) bool
 
 ---
 
-## cmd/aga
+## cmd/aga2aga
 
-`github.com/valpere/aga2aga/cmd/aga`
+`github.com/valpere/aga2aga/cmd/aga2aga`
 
 CLI tool built with cobra. Three subcommands.
 
-### aga validate
+### aga2aga validate
 
 ```
-aga validate <file> [--strict]
+aga2aga validate <file> [--strict]
 ```
 
 Runs all 3 validation layers against `<file>`. Prints each `ValidationError` with its layer and field. Exits zero on success.
@@ -657,18 +657,18 @@ Runs all 3 validation layers against `<file>`. Prints each `ValidationError` wit
 | `--strict` | false | Treat semantic warnings as fatal errors |
 
 ```bash
-aga validate tests/testdata/valid_genome.md
+aga2aga validate tests/testdata/valid_genome.md
 # valid_genome.md: OK
 
-aga validate --strict tests/testdata/invalid_doc.md
+aga2aga validate --strict tests/testdata/invalid_doc.md
 # invalid_doc.md: [structural] type: required field missing
 # exit 1
 ```
 
-### aga create
+### aga2aga create
 
 ```
-aga create <type> [flags]
+aga2aga create <type> [flags]
 ```
 
 Builds a document of the given message type via the fluent `Builder` and writes it to stdout or `--out`.
@@ -685,23 +685,23 @@ Builds a document of the given message type via the fluent `Builder` and writes 
 | `--out <file>` | Write to file instead of stdout |
 
 ```bash
-aga create task.request \
+aga2aga create task.request \
   --from orchestrator \
   --to agent-alpha \
   --exec-id exec-001 \
   --field "task=Analyze the dependency graph"
 
-aga create agent.genome \
+aga2aga create agent.genome \
   --from meta-evolver \
   --field "kind=worker" \
   --field "version=1" \
   --out genome.md
 ```
 
-### aga inspect
+### aga2aga inspect
 
 ```
-aga inspect <file> [--format text|json]
+aga2aga inspect <file> [--format text|json]
 ```
 
 Prints envelope fields from `<file>`.
@@ -711,14 +711,14 @@ Prints envelope fields from `<file>`.
 | `--format` | `text` | Output format: `text` or `json` |
 
 ```bash
-aga inspect genome.md
+aga2aga inspect genome.md
 # type:     agent.genome
 # id:       01HN7K2P3Q4R5S6T7U8V9W0X1Y
 # version:  v1
 # from:     meta-evolver
 # created:  2024-01-15T10:30:00Z
 
-aga inspect genome.md --format json
+aga2aga inspect genome.md --format json
 # {
 #   "type": "agent.genome",
 #   "id": "...",

@@ -27,7 +27,7 @@ func newCreateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			msgType := protocol.MessageType(args[0])
 			if _, ok := protocol.Lookup(msgType); !ok {
-				return fmt.Errorf("unknown message type %q; registered types: use 'aga create --help'", msgType)
+				return fmt.Errorf("unknown message type %q; registered types: use 'aga2aga create --help'", msgType)
 			}
 
 			b := document.NewBuilder(msgType)

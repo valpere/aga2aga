@@ -1,4 +1,4 @@
-// Package main is the entry point for the aga CLI tool.
+// Package main is the entry point for the aga2aga CLI tool.
 package main
 
 import (
@@ -11,11 +11,11 @@ import (
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:     "aga",
-		Short:   "aga — Skills Document CLI for aga2aga",
+		Use:     "aga2aga",
+		Short:   "aga2aga — Skills Document CLI",
 		Version: protocol.ProtocolVersion,
 	}
-	root.SetVersionTemplate("aga protocol version {{.Version}}\n")
+	root.SetVersionTemplate("aga2aga protocol version {{.Version}}\n")
 	root.AddCommand(newValidateCmd())
 	root.AddCommand(newCreateCmd())
 	root.AddCommand(newInspectCmd())

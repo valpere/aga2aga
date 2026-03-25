@@ -52,7 +52,7 @@ Dependencies flow strictly downward. No package imports a layer above it.
   internal/gateway     -- MCP Gateway implementation (imports all pkg/)
        ^
   cmd/gateway          -- MCP Gateway binary (imports internal/gateway)
-  cmd/aga              -- CLI tool (imports pkg/document, pkg/protocol)
+  cmd/aga2aga              -- CLI tool (imports pkg/document, pkg/protocol)
 ```
 
 Clean Architecture rule: `pkg/` packages never import `internal/` or `cmd/`. `cmd/` packages are thin entry points only.
@@ -227,15 +227,15 @@ rolled_back  (terminal — reachable from candidate)
 
 `GenomePatch` contains only the mutable subset of genome fields — `DO_NOT_TOUCH` fields (`id`, `lineage`, `genome_version`, `created_at`, `kind`) are structurally absent, preventing patch-apply from overwriting immutable fields.
 
-## cmd/aga
+## cmd/aga2aga
 
-`github.com/valpere/aga2aga/cmd/aga`
+`github.com/valpere/aga2aga/cmd/aga2aga`
 
 CLI tool built with cobra. Three subcommands:
 
-- `aga validate <file> [--strict]` — runs all 3 validation layers; `--strict` promotes semantic warnings to fatal errors.
-- `aga create <type> [flags]` — builds any registered message type via fluent builder flags and writes to stdout or `--out`.
-- `aga inspect <file> [--format text|json]` — prints envelope fields; JSON output nests `Extra` under `"extra"` to prevent key shadowing.
+- `aga2aga validate <file> [--strict]` — runs all 3 validation layers; `--strict` promotes semantic warnings to fatal errors.
+- `aga2aga create <type> [flags]` — builds any registered message type via fluent builder flags and writes to stdout or `--out`.
+- `aga2aga inspect <file> [--format text|json]` — prints envelope fields; JSON output nests `Extra` under `"extra"` to prevent key shadowing.
 
 `readAndParseFile(path)` is the shared helper that resolves symlinks (`filepath.EvalSymlinks`), enforces the size limit, and calls `document.Parse`.
 

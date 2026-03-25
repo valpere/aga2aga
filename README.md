@@ -70,7 +70,7 @@ Phase 1 (Skills Document Engine) is complete. Phases 2-5 are planned.
 |-----------|--------|-------|
 | `pkg/protocol` — 24 message type constants + registry | complete | 1 |
 | `pkg/document` — parser, validator, builder, lifecycle | complete | 1 |
-| `cmd/aga` — validate / create / inspect CLI | complete | 1 |
+| `cmd/aga2aga` — validate / create / inspect CLI | complete | 1 |
 | `pkg/transport` — Transport interface stub | stub | 1 |
 | `pkg/identity` — Identity + Signer interface stub | stub | 1 |
 | `pkg/negotiation` — NegotiationState stub | stub | 1 |
@@ -93,19 +93,19 @@ go build ./...
 go test ./...
 ```
 
-Install the `aga` CLI:
+Install the `aga2aga` CLI:
 
 ```bash
-go install github.com/valpere/aga2aga/cmd/aga@latest
+go install github.com/valpere/aga2aga/cmd/aga2aga@latest
 ```
 
 ### Validate a document
 
 ```bash
-aga validate path/to/document.md
+aga2aga validate path/to/document.md
 # valid_genome.md: OK
 
-aga validate --strict path/to/document.md
+aga2aga validate --strict path/to/document.md
 # --strict promotes semantic warnings to fatal errors
 ```
 
@@ -113,7 +113,7 @@ aga validate --strict path/to/document.md
 
 ```bash
 # Create a task request
-aga create task.request \
+aga2aga create task.request \
   --from orchestrator \
   --to agent-alpha \
   --exec-id exec-001 \
@@ -121,7 +121,7 @@ aga create task.request \
   --out task.md
 
 # Create an agent genome
-aga create agent.genome \
+aga2aga create agent.genome \
   --from meta-evolver \
   --field "kind=worker" \
   --field "version=1" \
@@ -131,21 +131,21 @@ aga create agent.genome \
 ### Inspect a document
 
 ```bash
-aga inspect genome.md
+aga2aga inspect genome.md
 # type:     agent.genome
 # id:       01HN7K2P3Q4R5S6T7U8V9W0X1Y
 # from:     meta-evolver
 # version:  v1
 # created:  2024-01-15T10:30:00Z
 
-aga inspect genome.md --format json
+aga2aga inspect genome.md --format json
 ```
 
 ## Package Structure
 
 ```
 cmd/gateway/      MCP Gateway binary (Phase 2)
-cmd/aga/          CLI tool: validate, create, inspect
+cmd/aga2aga/          CLI tool: validate, create, inspect
 
 pkg/document/     Skills Document engine (Phase 1, complete)
                     - Parse, Serialize, SplitFrontMatter

@@ -27,7 +27,7 @@ lint:
 validate:
 	@files=$$(find tests/testdata -maxdepth 1 -name '*.md' 2>/dev/null); \
 	if [ -n "$$files" ]; then \
-		echo "$$files" | xargs go run ./cmd/aga validate; \
+		echo "$$files" | xargs go run ./cmd/aga2aga validate; \
 	else \
 		echo "No fixtures found in tests/testdata/ — skipping"; \
 	fi
