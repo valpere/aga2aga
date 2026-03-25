@@ -80,7 +80,7 @@ func (pm *PendingMap) LoadAndDelete(taskID string) (topic, msgID string, ok bool
 
 // StartCleanup starts a background goroutine that sweeps entries older than ttl
 // every ttl/2. Effective maximum entry lifetime is therefore [ttl, 1.5*ttl).
-// It stops when ctx is cancelled.
+// ttl must be positive. It stops when ctx is cancelled.
 func (pm *PendingMap) StartCleanup(ctx context.Context, ttl time.Duration) {
 	sweep := ttl / 2
 	go func() {
