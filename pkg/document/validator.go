@@ -296,10 +296,11 @@ func (v *Validator) ValidateSemantic(doc *Document) []ValidationError {
 	return nil
 }
 
-// validateTerminalTransition validates from_status → toState when from_status is
-// present on the wire. When absent (omitempty), no error is returned — the
+// validateTerminalTransition validates a terminal lifecycle action (quarantine or retirement).
+// Transition check: only when from_status is present on the wire; when absent, the
 // orchestrator MUST perform a state-store lookup before applying the transition.
-// actionName is used in the self-action error message (e.g. "quarantine", "retirement").
+// Self-action check: always runs, regardless of from_status presence.
+// actionName labels error messages (e.g. "quarantine", "retirement").
 func validateTerminalTransition(doc *Document, toState LifecycleState, actionName string) []ValidationError {
 	var errs []ValidationError
 
