@@ -278,7 +278,7 @@ func collectSchemaErrors(ve *jsonschema.ValidationError, out *[]ValidationError)
 
 // ValidateSemantic performs Layer 3: semantic protocol rule checks.
 // Validates lifecycle transition legality for promotion, rollback, quarantine,
-// and retirement messages. Validates self-promotion denial for agent.promotion.
+// and retirement messages. Validates self-action denial for all four types.
 func (v *Validator) ValidateSemantic(doc *Document) []ValidationError {
 	if doc == nil {
 		return nil
@@ -332,32 +332,9 @@ func validateTerminalTransition(doc *Document, toState LifecycleState, actionNam
 func validateLifecycleTransition(doc *Document) []ValidationError {
 	var errs []ValidationError
 
-	fromStr, _ := doc.Extra["from_status"].(string)
-	toStr, _ := doc.Extra["to_status"].(string)
-
-	// Explicit guard: distinguish "fields missing" from "illegal transition" in
-	// governance logs. The structural layer should already have caught absence, but
-	// this provides defence-in-depth and unambiguous error messages.
-	if fromStr == "" || toStr == "" {
-		return []ValidationError{{
-			Layer:   LayerSemantic,
-			Field:   "from_status/to_status",
-			Message: "from_status and to_status are required for lifecycle transition",
-		}}
-	}
-
-	from := LifecycleState(fromStr)
-	to := LifecycleState(toStr)
-
-	if !ValidTransition(from, to) {
-		errs = append(errs, ValidationError{
-			Layer:   LayerSemantic,
-			Field:   "from_status/to_status",
-			Message: fmt.Sprintf("transition %q → %q is not permitted by spec §16", from, to),
-		})
-	}
-
-	// Self-action check for promotion and rollback.
+	// Self-action check runs first — independent of from_status/to_status presence.
+	// This ensures the check fires even when status fields are absent (e.g. callers
+	// invoking ValidateSemantic directly without a prior structural validation pass).
 	// SECURITY: doc.From is unverified until Phase 3 Ed25519 signing — this is
 	// defence-in-depth today, becomes a security boundary in Phase 3 (issue #43).
 	var actionName string
@@ -379,6 +356,32 @@ func validateLifecycleTransition(doc *Document) []ValidationError {
 			Layer:   LayerSemantic,
 			Field:   "from/target_agent",
 			Message: fmt.Sprintf("self-%s denied: agent %q cannot target itself", actionName, targetAgent),
+		})
+	}
+
+	fromStr, _ := doc.Extra["from_status"].(string)
+	toStr, _ := doc.Extra["to_status"].(string)
+
+	// Explicit guard: distinguish "fields missing" from "illegal transition" in
+	// governance logs. The structural layer should already have caught absence, but
+	// this provides defence-in-depth and unambiguous error messages.
+	if fromStr == "" || toStr == "" {
+		errs = append(errs, ValidationError{
+			Layer:   LayerSemantic,
+			Field:   "from_status/to_status",
+			Message: "from_status and to_status are required for lifecycle transition",
+		})
+		return errs
+	}
+
+	from := LifecycleState(fromStr)
+	to := LifecycleState(toStr)
+
+	if !ValidTransition(from, to) {
+		errs = append(errs, ValidationError{
+			Layer:   LayerSemantic,
+			Field:   "from_status/to_status",
+			Message: fmt.Sprintf("transition %q → %q is not permitted by spec §16", from, to),
 		})
 	}
 
