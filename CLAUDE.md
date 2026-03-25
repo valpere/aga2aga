@@ -125,6 +125,7 @@ internal/gateway/ MCP Gateway implementation
 - Lifecycle: `ValidTransition`, `AllowedTransitions`, 11 `LifecycleState` constants (DO_NOT_TOUCH)
 - Validator: `ValidateStructural` / `ValidateSchema` / `ValidateSemantic` / `Validate` (3-layer composite); `DefaultValidator()`
   - Semantic layer enforces `ValidTransition` for promotion, rollback, quarantine, and retirement
+  - Self-action governance check (`from == target_agent`) enforced for all four types; fires independently of `from_status` presence
   - `--strict` mode: semantic errors are warnings by default, fatal with `--strict`
   - `DefaultValidator()` is a `sync.Once` singleton; all per-type `$def` schemas are pre-compiled eagerly in `NewValidator` — safe for concurrent use (no data race)
 - Builder: `NewBuilder` + fluent setters (`ID`, `From`, `To`, `ExecID`, `Status`, `InReplyTo`, `ThreadID`, `Body`, `Field`); `Build()` runs full validation; sticky-error guard rejects reserved envelope keys in `Field()`
