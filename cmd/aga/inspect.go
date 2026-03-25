@@ -100,32 +100,32 @@ func printInspectJSON(cmd *cobra.Command, doc *document.Document) error {
 	// see types.go security note) is nested under "extra" to match the text
 	// format's separation and prevent key shadowing.
 	out := map[string]any{
-		"type":    string(doc.Envelope.Type),
-		"version": doc.Envelope.Version,
+		"type":    string(doc.Type),
+		"version": doc.Version,
 	}
-	if doc.Envelope.ID != "" {
-		out["id"] = doc.Envelope.ID
+	if doc.ID != "" {
+		out["id"] = doc.ID
 	}
-	if doc.Envelope.From != "" {
-		out["from"] = doc.Envelope.From
+	if doc.From != "" {
+		out["from"] = doc.From
 	}
-	if len(doc.Envelope.To) > 0 {
-		out["to"] = []string(doc.Envelope.To)
+	if len(doc.To) > 0 {
+		out["to"] = []string(doc.To)
 	}
-	if doc.Envelope.ExecID != "" {
-		out["exec_id"] = doc.Envelope.ExecID
+	if doc.ExecID != "" {
+		out["exec_id"] = doc.ExecID
 	}
-	if doc.Envelope.Status != "" {
-		out["status"] = doc.Envelope.Status
+	if doc.Status != "" {
+		out["status"] = doc.Status
 	}
-	if doc.Envelope.InReplyTo != "" {
-		out["in_reply_to"] = doc.Envelope.InReplyTo
+	if doc.InReplyTo != "" {
+		out["in_reply_to"] = doc.InReplyTo
 	}
-	if doc.Envelope.ThreadID != "" {
-		out["thread_id"] = doc.Envelope.ThreadID
+	if doc.ThreadID != "" {
+		out["thread_id"] = doc.ThreadID
 	}
-	if doc.Envelope.CreatedAt != "" {
-		out["created_at"] = doc.Envelope.CreatedAt
+	if doc.CreatedAt != "" {
+		out["created_at"] = doc.CreatedAt
 	}
 	if len(doc.Extra) > 0 {
 		out["extra"] = doc.Extra
