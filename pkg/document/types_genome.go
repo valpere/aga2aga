@@ -46,15 +46,25 @@ type PromptPolicy struct {
 }
 
 // EscalationRule defines a condition that triggers routing to another agent.
+//
+// SECURITY: Condition and Target are self-reported wire strings supplied by the sender.
+// Dispatchers MUST NOT execute or interpret Condition as code or query language — it is an
+// opaque label. Target MUST be validated against a known agent registry in the authoritative
+// state-store before any dispatch decision — never trust the wire value (CWE-20, CWE-601).
 type EscalationRule struct {
-	Condition string `yaml:"condition"`
-	Target    string `yaml:"target"`
+	Condition string `yaml:"condition"` // opaque label — MUST NOT be executed or interpreted
+	Target    string `yaml:"target"`    // self-reported agent ID — MUST validate in registry before dispatch
 }
 
 // RoutingPolicy defines what messages an agent accepts and how it delegates.
+//
+// SECURITY: Accepts, DelegatesTo, and EscalationRules are all wire-supplied and attacker-
+// controlled. Dispatchers MUST sanitize Accepts entries against the known protocol message
+// type registry before routing. DelegatesTo agent IDs MUST be validated in the authoritative
+// state-store before any delegation decision — never trust the wire values (CWE-20, CWE-601).
 type RoutingPolicy struct {
-	Accepts         []string         `yaml:"accepts"`
-	DelegatesTo     []string         `yaml:"delegates_to,omitempty"`
+	Accepts         []string         `yaml:"accepts"`                   // self-reported; MUST validate against protocol registry before routing
+	DelegatesTo     []string         `yaml:"delegates_to,omitempty"`    // self-reported agent IDs — MUST validate in registry before delegation
 	EscalationRules []EscalationRule `yaml:"escalation_rules,omitempty"`
 }
 
