@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -126,9 +127,13 @@ func (srv *Server) handlePolicyDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // listAgentsForForm returns the agent list for populating policy form dropdowns.
-// On error it returns nil (empty dropdown) since the caller already has a form error to display.
+// On store error it logs and returns nil (empty dropdown); the caller already has a
+// form validation error to display and an empty dropdown is still usable.
 func (srv *Server) listAgentsForForm(r *http.Request, orgID string) []admin.RegisteredAgent {
-	agents, _ := srv.store.ListAgents(r.Context(), orgID)
+	agents, err := srv.store.ListAgents(r.Context(), orgID)
+	if err != nil {
+		log.Printf("listAgentsForForm: failed to load agents for org %q: %v", orgID, err)
+	}
 	return agents
 }
 
