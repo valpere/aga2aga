@@ -25,7 +25,7 @@ gofmt -w .           # format code
 - **Protocol:** Markdown + YAML Skills Documents
 - **Identity/Crypto:** Ed25519 signatures
 - **Schema validation:** JSON Schema 2020-12
-- **CI:** GitHub Actions — golangci-lint **v2.11.4** (local machine has v1; do not use local lint to validate config)
+- **CI:** GitHub Actions — golangci-lint **v2.11.4** (local machine has v1; do not use local lint to validate config); step order: go mod tidy → Build → Test → Upload coverage (7-day artifact) → Vet → Lint; no secrets under `pull_request` trigger
 - **Container:** Docker (Phase 2+)
 
 ## Architecture
