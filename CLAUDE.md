@@ -148,6 +148,8 @@ internal/gateway/ MCP Gateway implementation
 - Semantic validator calls `ValidTransition` for quarantine/retirement when `from_status` is present; schema guards the enum
 - `SpawnProposal.GenomePatch` is typed (`*GenomePatch`) — DO_NOT_TOUCH fields are structurally absent; patch-apply MUST only append to `SoftConstraints`, never replace
 - `PromptPolicy.Style` is `map[string]any` — attacker-controlled (open vocab per spec §4.3); callers MUST sanitise before auth/signing/lifecycle use (annotated in `types_genome.go`)
+- `EscalationRule.Condition` is an opaque label — MUST NOT be executed or interpreted as code/query language (CWE-20); `EscalationRule.Target` is self-reported — MUST validate in agent registry before dispatch (CWE-601)
+- `RoutingPolicy.Accepts`, `DelegatesTo`, `EscalationRules` are all wire-supplied and attacker-controlled; dispatchers MUST sanitize Accepts against protocol registry and validate DelegatesTo IDs in state-store before any routing/delegation decision (annotated in `types_genome.go`, issue #38)
 
 ## Skills and Plugins
 
