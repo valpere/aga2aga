@@ -136,7 +136,7 @@ internal/gateway/ MCP Gateway implementation
 - `aga validate <file>` — 3-layer validation; `--strict` flag
 - `aga create <type>` — build any registered message type via `--id/--from/--to/--exec-id/--field/--out`
 - `aga inspect <file>` — print envelope fields; `--format text|json`; JSON output nests `Extra` under `"extra"` key
-- `readAndParseFile` helper (`helpers.go`) — shared open/size-check/parse; `ErrDocumentTooLarge` sentinel for `errors.Is` testing
+- `readAndParseFile` helper (`helpers.go`) — shared open/size-check/parse; `ErrDocumentTooLarge` sentinel for `errors.Is` testing; `filepath.EvalSymlinks` guard (CWE-22/61); path is CLI-only (SECURITY godoc)
 
 #### Security invariants (pkg/document)
 
