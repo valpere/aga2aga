@@ -99,13 +99,16 @@ Fitness is a weighted score (quality 35%, safety 15%, reliability 20%, latency 1
 
 ```
 cmd/aga2aga/      CLI tool (aga2aga validate/create/inspect)  ← DONE (issue #21)
+cmd/admin/        Web admin UI binary (aga2aga-admin)         ← DONE (issue #86)
 cmd/gateway/      MCP Gateway binary                          (Phase 2)
 pkg/document/     Skills Document parser, validator, builder  ← DONE (Phase 1)
 pkg/protocol/     Message types and registry                  ← DONE (issue #15)
 pkg/transport/    Transport abstraction (Redis, Gossip)       (stub)
 pkg/identity/     Ed25519 identity and trust                  (stub)
 pkg/negotiation/  Negotiation protocol engine                 (stub)
-internal/gateway/ MCP Gateway implementation                  (Phase 2)
+internal/admin/   Web admin HTTP handlers, middleware, SQLite store ← DONE (issue #86)
+internal/gateway/ MCP Gateway implementation                       (Phase 2)
+pkg/admin/        Admin domain types, Store interface, policy eval ← DONE (issue #86)
 docs/             All project documentation
 ```
 

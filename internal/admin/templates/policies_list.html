@@ -1,0 +1,43 @@
+{{template "layout.html" .}}
+{{define "title"}}Policies — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>Communication Policies</h1>
+  <div class="actions">
+    <a href="/policies/new" class="btn btn-primary btn-sm">Add Policy</a>
+  </div>
+</div>
+
+<div class="card">
+  <p class="text-muted mb1" style="font-size:.875rem">
+    Policies are evaluated by priority (highest first). First match wins. Default: deny.
+  </p>
+
+  {{if .Policies}}
+  <table>
+    <thead><tr><th>Priority</th><th>Source</th><th>Target</th><th>Direction</th><th>Action</th><th>Actions</th></tr></thead>
+    <tbody>
+    {{range .Policies}}
+    <tr>
+      <td>{{.Priority}}</td>
+      <td>{{.SourceID}}</td>
+      <td>{{.TargetID}}</td>
+      <td>{{.Direction}}</td>
+      <td><span class="badge badge-{{.Action}}">{{.Action}}</span></td>
+      <td>
+        {{if $.CanEdit}}
+        <a href="/policies/{{.ID}}/edit" class="btn btn-sm btn-secondary">Edit</a>
+        <form method="POST" action="/policies/{{.ID}}/delete" style="display:inline">
+          <button class="btn btn-sm btn-danger">Delete</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">No policies defined. <a href="/policies/new">Add one.</a></p>
+  {{end}}
+</div>
+{{end}}

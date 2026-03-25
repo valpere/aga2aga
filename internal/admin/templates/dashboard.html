@@ -1,0 +1,40 @@
+{{template "layout.html" .}}
+{{define "title"}}Dashboard — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <div class="actions">
+    <a href="/agents/new" class="btn btn-primary btn-sm">Register Agent</a>
+    <a href="/policies/new" class="btn btn-secondary btn-sm">Add Policy</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="value">{{.Stats.AgentsActive}}</div><div class="label">Active Agents</div></div>
+  <div class="stat"><div class="value">{{.Stats.AgentsSuspended}}</div><div class="label">Suspended</div></div>
+  <div class="stat"><div class="value">{{.Stats.AgentsRevoked}}</div><div class="label">Revoked</div></div>
+  <div class="stat"><div class="value">{{.Stats.PoliciesAllow}}</div><div class="label">Allow Policies</div></div>
+  <div class="stat"><div class="value">{{.Stats.PoliciesDeny}}</div><div class="label">Deny Policies</div></div>
+</div>
+
+<div class="card">
+  <h2>Recent Activity <a href="/audit" style="font-size:.8rem;font-weight:normal;margin-left:.5rem">View all</a></h2>
+  {{if .RecentEvents}}
+  <table>
+    <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th></tr></thead>
+    <tbody>
+    {{range .RecentEvents}}
+    <tr>
+      <td class="text-muted">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+      <td>{{.Username}}</td>
+      <td><code>{{.Action}}</code></td>
+      <td>{{.Detail}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">No activity yet.</p>
+  {{end}}
+</div>
+{{end}}

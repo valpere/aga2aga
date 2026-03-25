@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{block "title" .}}aga2aga Admin{{end}}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav class="nav">
+  <span class="brand">aga2aga admin</span>
+  <a href="/" {{if eq .Page "dashboard"}}class="active"{{end}}>Dashboard</a>
+  <a href="/agents" {{if eq .Page "agents"}}class="active"{{end}}>Agents</a>
+  <a href="/policies" {{if eq .Page "policies"}}class="active"{{end}}>Policies</a>
+  <a href="/audit" {{if eq .Page "audit"}}class="active"{{end}}>Audit</a>
+  {{if eq .Session.Role "admin"}}<a href="/api-keys" {{if eq .Page "apikeys"}}class="active"{{end}}>API Keys</a>{{end}}
+  <span class="text-muted" style="font-size:.85rem">{{.Session.Username}} ({{.Session.Role}})</span>
+  <form method="POST" action="/logout" style="margin:0">
+    <button type="submit" class="btn btn-secondary btn-sm">Logout</button>
+  </form>
+</nav>
+<div class="container">
+{{block "content" .}}{{end}}
+</div>
+</body>
+</html>

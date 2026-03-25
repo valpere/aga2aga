@@ -1,0 +1,65 @@
+{{template "layout.html" .}}
+{{define "title"}}API Keys — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>API Keys</h1>
+</div>
+
+{{if .NewKey}}
+<div class="alert alert-success">
+  <strong>Key created.</strong> Copy it now — it will not be shown again.<br>
+  <code style="word-break:break-all">{{.NewKey}}</code>
+</div>
+{{end}}
+
+<div class="card">
+  <div class="actions" style="margin-bottom:1rem">
+    <form method="POST" action="/api-keys/new" style="display:flex;gap:.5rem;align-items:flex-end">
+      <div>
+        <label>Name</label><br>
+        <input type="text" name="name" placeholder="e.g. gateway-prod" required>
+      </div>
+      <div>
+        <label>Role</label><br>
+        <select name="role">
+          <option value="operator">operator</option>
+          <option value="viewer">viewer</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Create Key</button>
+    </form>
+  </div>
+
+  {{if .Keys}}
+  <table>
+    <thead><tr><th>Name</th><th>Role</th><th>Created By</th><th>Created</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+    {{range .Keys}}
+    <tr>
+      <td>{{.Name}}</td>
+      <td><span class="badge">{{.Role}}</span></td>
+      <td class="text-muted">{{.CreatedBy}}</td>
+      <td class="text-muted">{{.CreatedAt.Format "2006-01-02"}}</td>
+      <td>
+        {{if .RevokedAt.IsZero}}
+          <span class="badge badge-active">active</span>
+        {{else}}
+          <span class="badge badge-revoked">revoked</span>
+        {{end}}
+      </td>
+      <td>
+        {{if .RevokedAt.IsZero}}
+        <form method="POST" action="/api-keys/{{.ID}}/revoke" style="display:inline">
+          <button class="btn btn-sm btn-danger">Revoke</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">No API keys yet.</p>
+  {{end}}
+</div>
+{{end}}

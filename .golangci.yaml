@@ -11,6 +11,10 @@ linters:
             - github.com/valpere/aga2aga
             - gopkg.in/yaml.v3
             - github.com/stretchr/testify
+            - github.com/gorilla/securecookie
+            - github.com/google/uuid
+            - golang.org/x/crypto
+            - modernc.org/sqlite
 
     tagliatelle:
       case:
@@ -31,6 +35,9 @@ linters:
       exclude:
         - "^github\\.com/valpere/aga2aga/pkg/document\\.Envelope$"
         - "^github\\.com/valpere/aga2aga/pkg/document\\.Document$"
+        - "^github\\.com/valpere/aga2aga/pkg/admin\\."
+        - "^net/http\\.Server$"
+        - "^net/http\\.Cookie$"
 
   exclusions:
     rules:
@@ -56,3 +63,9 @@ linters:
       - path: "cmd/aga2aga"
         linters: [errcheck]
         text: "fmt\\.Fprint"
+      # wrapcheck: internal/admin wraps store/crypto errors — already using fmt.Errorf+%w where needed.
+      - path: "internal/admin"
+        linters: [wrapcheck]
+      # wrapcheck: cmd/admin wraps store/crypto with fmt.Errorf+%w.
+      - path: "cmd/admin"
+        linters: [wrapcheck]

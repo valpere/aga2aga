@@ -1,0 +1,28 @@
+{{template "layout.html" .}}
+{{define "title"}}Register Agent — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>Register Agent</h1>
+  <div class="actions">
+    <a href="/agents" class="btn btn-secondary btn-sm">Cancel</a>
+  </div>
+</div>
+
+<div class="card" style="max-width:560px">
+  {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+  <form method="POST" action="/agents/new">
+    <div class="form-group">
+      <label for="agent_id">Agent ID</label>
+      <input type="text" id="agent_id" name="agent_id" required value="{{.AgentID}}"
+             placeholder="e.g. agent-alpha">
+      <div class="form-hint">Must match the <code>from:</code> field in Skills Documents sent by this agent.</div>
+    </div>
+    <div class="form-group">
+      <label for="display_name">Display Name</label>
+      <input type="text" id="display_name" name="display_name" value="{{.DisplayName}}"
+             placeholder="e.g. Alpha Worker">
+    </div>
+    <button type="submit" class="btn btn-primary">Register</button>
+  </form>
+</div>
+{{end}}

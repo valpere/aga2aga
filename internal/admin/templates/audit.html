@@ -1,0 +1,39 @@
+{{template "layout.html" .}}
+{{define "title"}}Audit Log — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>Audit Log</h1>
+</div>
+
+<div class="card">
+  <div class="filter-bar">
+    <label>Filter by action:</label>
+    <select onchange="window.location='/audit?action='+this.value">
+      <option value="" {{if eq .Filter ""}}selected{{end}}>All</option>
+      <option value="agent."  {{if eq .Filter "agent."}}selected{{end}}>Agent</option>
+      <option value="policy." {{if eq .Filter "policy."}}selected{{end}}>Policy</option>
+      <option value="apikey." {{if eq .Filter "apikey."}}selected{{end}}>API Key</option>
+      <option value="user."   {{if eq .Filter "user."}}selected{{end}}>User</option>
+    </select>
+  </div>
+
+  {{if .Events}}
+  <table>
+    <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+    <tbody>
+    {{range .Events}}
+    <tr>
+      <td class="text-muted">{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
+      <td>{{.Username}}</td>
+      <td><code>{{.Action}}</code></td>
+      <td class="text-muted">{{.TargetType}}/{{.TargetID}}</td>
+      <td>{{.Detail}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">No audit events found.</p>
+  {{end}}
+</div>
+{{end}}
