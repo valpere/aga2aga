@@ -61,7 +61,10 @@ func newCreateCmd() *cobra.Command {
 			}
 
 			if flagOut != "" {
-				return os.WriteFile(flagOut, raw, 0o644)
+				if err := os.WriteFile(flagOut, raw, 0o644); err != nil {
+					return fmt.Errorf("write %q: %w", flagOut, err)
+				}
+				return nil
 			}
 			_, err = fmt.Fprint(cmd.OutOrStdout(), string(raw))
 			return err
