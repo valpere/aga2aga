@@ -43,3 +43,17 @@ func TestValidate_MissingFile(t *testing.T) {
 		t.Fatal("Execute() expected error for missing file, got nil")
 	}
 }
+
+func TestValidate_StrictValidFile(t *testing.T) {
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	cmd := newRootCmd()
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+	cmd.SetArgs([]string{"validate", "--strict", "../../tests/testdata/valid_task_request.md"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v stderr=%s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "OK") {
+		t.Errorf("stdout = %q; want OK", stdout.String())
+	}
+}

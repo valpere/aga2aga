@@ -72,7 +72,9 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagFrom, "from", "", "sender agent id")
 	cmd.Flags().StringArrayVar(&flagTo, "to", nil, "recipient(s) — repeat for multiple")
 	cmd.Flags().StringVar(&flagExecID, "exec-id", "", "execution/workflow id (exec_id envelope field)")
-	cmd.Flags().StringArrayVar(&flagFields, "field", nil, "extra field as key=value — repeat for multiple")
+	// Note: --field values are always strings. Structured fields (arrays, booleans,
+	// objects) required by agent evolution types must use the builder API, not --field.
+	cmd.Flags().StringArrayVar(&flagFields, "field", nil, "extra field as key=value (string values only) — repeat for multiple")
 	cmd.Flags().StringVar(&flagOut, "out", "", "write output to file instead of stdout")
 
 	return cmd

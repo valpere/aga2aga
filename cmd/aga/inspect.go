@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/valpere/aga2aga/pkg/document"
@@ -18,13 +20,21 @@ func newInspectCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
-			raw, err := os.ReadFile(path)
+			f, err := os.Open(path)
 			if err != nil {
-				return fmt.Errorf("read %s: %w", path, err)
+				return fmt.Errorf("open %q: %w", filepath.Base(path), err)
+			}
+			defer f.Close()
+			raw, err := io.ReadAll(io.LimitReader(f, document.MaxDocumentBytes+1))
+			if err != nil {
+				return fmt.Errorf("read %q: %w", filepath.Base(path), err)
+			}
+			if len(raw) > document.MaxDocumentBytes {
+				return fmt.Errorf("document exceeds maximum size (%d bytes)", document.MaxDocumentBytes)
 			}
 			doc, err := document.Parse(raw)
 			if err != nil {
-				return fmt.Errorf("parse %s: %w", path, err)
+				return fmt.Errorf("parse %q: %w", filepath.Base(path), err)
 			}
 			v, err := document.DefaultValidator()
 			if err != nil {
@@ -38,10 +48,12 @@ func newInspectCmd() *cobra.Command {
 			}
 
 			switch format {
+			case "text":
+				return printInspectText(cmd, doc)
 			case "json":
 				return printInspectJSON(cmd, doc)
 			default:
-				return printInspectText(cmd, doc)
+				return fmt.Errorf("unknown format %q: must be text or json", format)
 			}
 		},
 	}
@@ -84,6 +96,9 @@ func printInspectText(cmd *cobra.Command, doc *document.Document) error {
 }
 
 func printInspectJSON(cmd *cobra.Command, doc *document.Document) error {
+	// Envelope fields are always at the top level; Extra (attacker-controlled,
+	// see types.go security note) is nested under "extra" to match the text
+	// format's separation and prevent key shadowing.
 	out := map[string]any{
 		"type":    string(doc.Envelope.Type),
 		"version": doc.Envelope.Version,
@@ -112,8 +127,8 @@ func printInspectJSON(cmd *cobra.Command, doc *document.Document) error {
 	if doc.Envelope.CreatedAt != "" {
 		out["created_at"] = doc.Envelope.CreatedAt
 	}
-	for k, v := range doc.Extra {
-		out[k] = v
+	if len(doc.Extra) > 0 {
+		out["extra"] = doc.Extra
 	}
 	enc := json.NewEncoder(cmd.OutOrStdout())
 	enc.SetIndent("", "  ")

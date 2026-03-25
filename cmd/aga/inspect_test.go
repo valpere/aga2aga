@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -48,8 +49,22 @@ func TestInspect_JSONFormat(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	out := stdout.String()
-	if !strings.HasPrefix(strings.TrimSpace(out), "{") {
-		t.Errorf("expected JSON output, got: %s", out)
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout.String())
+	}
+	if _, ok := got["type"]; !ok {
+		t.Errorf("JSON output missing 'type' key: %v", got)
+	}
+	if _, ok := got["version"]; !ok {
+		t.Errorf("JSON output missing 'version' key: %v", got)
+	}
+}
+
+func TestInspect_UnknownFormat(t *testing.T) {
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"inspect", "--format", "xml", "../../tests/testdata/valid_task_request.md"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("Execute() expected error for unknown format, got nil")
 	}
 }
