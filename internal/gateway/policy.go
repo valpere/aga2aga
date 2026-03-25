@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -42,8 +43,14 @@ func (e *EmbeddedEnforcer) Allowed(ctx context.Context, source, target string) (
 	return admin.Evaluate(policies, source, target) == admin.PolicyActionAllow, nil
 }
 
+// maxEvaluateResponseBytes caps the admin server response body to prevent
+// unbounded memory allocation from a slow-loris or oversized response (CWE-400).
+// The expected payload is {"action":"allow"} or {"action":"deny"} — well under 4 KiB.
+const maxEvaluateResponseBytes = 4 * 1024
+
 // HTTPEnforcer evaluates policies by calling the admin server's evaluate
 // endpoint. Use this when the gateway and admin server are separate processes.
+// Production deployments SHOULD use an https baseURL to protect the Bearer token.
 //
 // SECURITY: token is a Bearer credential — never log it or include it in
 // error messages.
@@ -54,13 +61,18 @@ type HTTPEnforcer struct {
 }
 
 // NewHTTPEnforcer creates an HTTPEnforcer that calls baseURL/api/v1/evaluate
-// with the given Bearer token. Uses a 5-second HTTP timeout per call.
-func NewHTTPEnforcer(baseURL, token string) *HTTPEnforcer {
+// with the given Bearer token. baseURL must be an http or https URL with a
+// non-empty host; returns an error otherwise. Uses a 5-second HTTP timeout.
+func NewHTTPEnforcer(baseURL, token string) (*HTTPEnforcer, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return nil, fmt.Errorf("gateway/policy: invalid admin baseURL %q: must be http or https with a non-empty host", baseURL)
+	}
 	return &HTTPEnforcer{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
 		client:  &http.Client{Timeout: 5 * time.Second},
-	}
+	}, nil
 }
 
 // Allowed returns true if the admin server responds with {"action":"allow"}.
@@ -87,8 +99,9 @@ func (e *HTTPEnforcer) Allowed(ctx context.Context, source, target string) (bool
 	var result struct {
 		Action string `json:"action"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	limited := io.LimitReader(resp.Body, maxEvaluateResponseBytes)
+	if err := json.NewDecoder(limited).Decode(&result); err != nil {
 		return false, fmt.Errorf("gateway/policy: decode response: %w", err)
 	}
-	return result.Action == "allow", nil
+	return admin.PolicyAction(result.Action) == admin.PolicyActionAllow, nil
 }

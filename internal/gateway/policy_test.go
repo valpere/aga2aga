@@ -13,8 +13,9 @@ import (
 )
 
 // mockPolicyStore implements admin.PolicyStore for tests.
-// Only ListPolicies is used; other methods panic if called unexpectedly.
+// Only ListPolicies is used; other methods call t.Fatalf if invoked unexpectedly.
 type mockPolicyStore struct {
+	t        *testing.T
 	policies []admin.CommunicationPolicy
 	err      error
 }
@@ -23,16 +24,20 @@ func (m *mockPolicyStore) ListPolicies(_ context.Context, _ string) ([]admin.Com
 	return m.policies, m.err
 }
 func (m *mockPolicyStore) CreatePolicy(_ context.Context, _ *admin.CommunicationPolicy) error {
-	panic("not expected")
+	m.t.Fatalf("mockPolicyStore: CreatePolicy called unexpectedly")
+	return nil
 }
 func (m *mockPolicyStore) GetPolicy(_ context.Context, _ string) (*admin.CommunicationPolicy, error) {
-	panic("not expected")
+	m.t.Fatalf("mockPolicyStore: GetPolicy called unexpectedly")
+	return nil, nil
 }
 func (m *mockPolicyStore) UpdatePolicy(_ context.Context, _ *admin.CommunicationPolicy) error {
-	panic("not expected")
+	m.t.Fatalf("mockPolicyStore: UpdatePolicy called unexpectedly")
+	return nil
 }
 func (m *mockPolicyStore) DeletePolicy(_ context.Context, _ string) error {
-	panic("not expected")
+	m.t.Fatalf("mockPolicyStore: DeletePolicy called unexpectedly")
+	return nil
 }
 
 func TestEmbeddedEnforcer_Allowed(t *testing.T) {
@@ -79,7 +84,7 @@ func TestEmbeddedEnforcer_Allowed(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			store := &mockPolicyStore{policies: tc.policies, err: tc.storeErr}
+			store := &mockPolicyStore{t: t, policies: tc.policies, err: tc.storeErr}
 			e := gateway.NewEmbeddedEnforcer(store, "org1")
 
 			got, err := e.Allowed(context.Background(), tc.source, tc.target)
@@ -105,8 +110,8 @@ func TestHTTPEnforcer_Allowed(t *testing.T) {
 		{
 			name: "allow response",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				if r.Header.Get("Authorization") == "" {
-					http.Error(w, "missing auth", http.StatusUnauthorized)
+				if r.Header.Get("Authorization") != "Bearer test-token" {
+					http.Error(w, "bad auth", http.StatusUnauthorized)
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")
@@ -147,7 +152,10 @@ func TestHTTPEnforcer_Allowed(t *testing.T) {
 				defer ts.Close()
 			}
 
-			e := gateway.NewHTTPEnforcer(ts.URL, "test-token")
+			e, err := gateway.NewHTTPEnforcer(ts.URL, "test-token")
+			if err != nil {
+				t.Fatalf("NewHTTPEnforcer: %v", err)
+			}
 			got, err := e.Allowed(context.Background(), "agent-a", "agent-b")
 
 			if (err != nil) != tc.wantErr {
@@ -155,6 +163,26 @@ func TestHTTPEnforcer_Allowed(t *testing.T) {
 			}
 			if !tc.wantErr && got != tc.wantAllow {
 				t.Errorf("Allowed() = %v, want %v", got, tc.wantAllow)
+			}
+		})
+	}
+}
+
+func TestNewHTTPEnforcer_InvalidURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+	}{
+		{name: "empty string", baseURL: ""},
+		{name: "file scheme", baseURL: "file:///etc/passwd"},
+		{name: "no scheme", baseURL: "admin:8080"},
+		{name: "no host", baseURL: "https://"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := gateway.NewHTTPEnforcer(tc.baseURL, "tok")
+			if err == nil {
+				t.Errorf("NewHTTPEnforcer(%q) expected error, got nil", tc.baseURL)
 			}
 		})
 	}
