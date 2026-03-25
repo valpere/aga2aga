@@ -78,8 +78,8 @@ func NewValidator(schemaBytes []byte) (*Validator, error) {
 	// subsequent ValidateSchema calls read-only and safe for concurrent use.
 	schemas := make(map[protocol.MessageType]*jsonschema.Schema)
 	for _, mt := range protocol.Registered() {
-		meta, _ := protocol.Lookup(mt)
-		if meta.SchemaRef == "" {
+		meta, ok := protocol.Lookup(mt)
+		if !ok || meta.SchemaRef == "" {
 			continue
 		}
 		refURL := "aga2aga://schema#/$defs/" + meta.SchemaRef
