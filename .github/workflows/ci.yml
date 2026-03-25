@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # SECURITY: No secrets may be added to steps under this trigger.
+    # Fork PRs run here with contents: read only.
+    # Steps requiring secrets (Codecov, registry push) belong in
+    # push-only or workflow_run workflows.
 
 permissions:
   contents: read
@@ -24,11 +28,21 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Check go mod tidy
+        run: go mod tidy && git diff --exit-code go.mod go.sum
+
       - name: Build
         run: go build ./...
 
       - name: Test
-        run: go test ./...
+        run: go test -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 7
 
       - name: Vet
         run: go vet ./...
