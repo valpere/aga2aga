@@ -12,6 +12,8 @@
   <a href="/" {{if eq .Page "dashboard"}}class="active"{{end}}>Dashboard</a>
   <a href="/agents" {{if eq .Page "agents"}}class="active"{{end}}>Agents</a>
   <a href="/policies" {{if eq .Page "policies"}}class="active"{{end}}>Policies</a>
+  <a href="/audit" {{if eq .Page "audit"}}class="active"{{end}}>Audit</a>
+  {{if eq .Session.Role "admin"}}<a href="/api-keys" {{if eq .Page "apikeys"}}class="active"{{end}}>API Keys</a>{{end}}
   <span class="text-muted" style="font-size:.85rem">{{.Session.Username}} ({{.Session.Role}})</span>
   <form method="POST" action="/logout" style="margin:0">
     <button type="submit" class="btn btn-secondary btn-sm">Logout</button>

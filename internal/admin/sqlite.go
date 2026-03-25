@@ -65,6 +65,29 @@ CREATE TABLE IF NOT EXISTS registered_agents (
   UNIQUE(org_id, agent_id)
 );
 
+CREATE TABLE IF NOT EXISTS audit_events (
+  id          TEXT PRIMARY KEY,
+  org_id      TEXT NOT NULL REFERENCES organizations(id),
+  user_id     TEXT NOT NULL,
+  username    TEXT NOT NULL,
+  action      TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id   TEXT NOT NULL,
+  detail      TEXT NOT NULL DEFAULT '',
+  created_at  DATETIME NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+  id         TEXT PRIMARY KEY,
+  org_id     TEXT NOT NULL REFERENCES organizations(id),
+  name       TEXT NOT NULL,
+  key_hash   TEXT NOT NULL UNIQUE,
+  role       TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id),
+  created_at DATETIME NOT NULL,
+  revoked_at DATETIME NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS communication_policies (
   id         TEXT PRIMARY KEY,
   org_id     TEXT NOT NULL REFERENCES organizations(id),
@@ -273,4 +296,106 @@ func scanPolicy(row *sql.Row) (*admin.CommunicationPolicy, error) {
 	p.Action = admin.PolicyAction(action)
 	p.CreatedAt = parseRFC3339(createdAt)
 	return &p, nil
+}
+
+// --- AuditStore ---
+
+func (s *SQLiteStore) AppendAuditEvent(ctx context.Context, e *admin.AuditEvent) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO audit_events(id, org_id, user_id, username, action, target_type, target_id, detail, created_at)
+		 VALUES(?,?,?,?,?,?,?,?,?)`,
+		e.ID, e.OrgID, e.UserID, e.Username, e.Action,
+		e.TargetType, e.TargetID, e.Detail, e.CreatedAt.Format(time.RFC3339),
+	)
+	return err
+}
+
+func (s *SQLiteStore) ListAuditEvents(ctx context.Context, orgID string, limit int) ([]admin.AuditEvent, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, org_id, user_id, username, action, target_type, target_id, detail, created_at
+		 FROM audit_events WHERE org_id=? ORDER BY created_at DESC LIMIT ?`, orgID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []admin.AuditEvent
+	for rows.Next() {
+		var e admin.AuditEvent
+		var createdAt string
+		if err := rows.Scan(&e.ID, &e.OrgID, &e.UserID, &e.Username,
+			&e.Action, &e.TargetType, &e.TargetID, &e.Detail, &createdAt); err != nil {
+			return nil, err
+		}
+		e.CreatedAt = parseRFC3339(createdAt)
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
+// --- APIKeyStore ---
+
+func (s *SQLiteStore) CreateAPIKey(ctx context.Context, k *admin.APIKey) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO api_keys(id, org_id, name, key_hash, role, created_by, created_at, revoked_at)
+		 VALUES(?,?,?,?,?,?,?,?)`,
+		k.ID, k.OrgID, k.Name, k.KeyHash, string(k.Role),
+		k.CreatedBy, k.CreatedAt.Format(time.RFC3339), "",
+	)
+	return err
+}
+
+func (s *SQLiteStore) GetAPIKeyByHash(ctx context.Context, hash string) (*admin.APIKey, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, org_id, name, key_hash, role, created_by, created_at, revoked_at
+		 FROM api_keys WHERE key_hash=?`, hash)
+	return scanAPIKey(row)
+}
+
+func (s *SQLiteStore) ListAPIKeys(ctx context.Context, orgID string) ([]admin.APIKey, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, org_id, name, key_hash, role, created_by, created_at, revoked_at
+		 FROM api_keys WHERE org_id=? ORDER BY created_at DESC`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var keys []admin.APIKey
+	for rows.Next() {
+		var k admin.APIKey
+		var role, createdAt, revokedAt string
+		if err := rows.Scan(&k.ID, &k.OrgID, &k.Name, &k.KeyHash, &role,
+			&k.CreatedBy, &createdAt, &revokedAt); err != nil {
+			return nil, err
+		}
+		k.Role = admin.Role(role)
+		k.CreatedAt = parseRFC3339(createdAt)
+		if revokedAt != "" {
+			k.RevokedAt = parseRFC3339(revokedAt)
+		}
+		keys = append(keys, k)
+	}
+	return keys, rows.Err()
+}
+
+func (s *SQLiteStore) RevokeAPIKey(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE api_keys SET revoked_at=? WHERE id=?`,
+		time.Now().UTC().Format(time.RFC3339), id,
+	)
+	return err
+}
+
+func scanAPIKey(row *sql.Row) (*admin.APIKey, error) {
+	var k admin.APIKey
+	var role, createdAt, revokedAt string
+	if err := row.Scan(&k.ID, &k.OrgID, &k.Name, &k.KeyHash, &role,
+		&k.CreatedBy, &createdAt, &revokedAt); err != nil {
+		return nil, err
+	}
+	k.Role = admin.Role(role)
+	k.CreatedAt = parseRFC3339(createdAt)
+	if revokedAt != "" {
+		k.RevokedAt = parseRFC3339(revokedAt)
+	}
+	return &k, nil
 }

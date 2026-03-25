@@ -77,6 +77,8 @@ func (srv *Server) handlePolicyNewPost(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	recordAudit(r.Context(), srv.store, sd, "policy.create", "policy", p.ID,
+		"created policy "+p.SourceID+"→"+p.TargetID+" "+string(p.Action))
 	http.Redirect(w, r, "/policies", http.StatusSeeOther)
 }
 
@@ -114,15 +116,19 @@ func (srv *Server) handlePolicyEditPost(w http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+	recordAudit(r.Context(), srv.store, sd, "policy.update", "policy", p.ID,
+		"updated policy "+p.SourceID+"→"+p.TargetID+" "+string(p.Action))
 	http.Redirect(w, r, "/policies", http.StatusSeeOther)
 }
 
 func (srv *Server) handlePolicyDelete(w http.ResponseWriter, r *http.Request) {
+	sd := sessionFromCtx(r)
 	id := r.PathValue("id")
 	if err := srv.store.DeletePolicy(r.Context(), id); err != nil {
 		http.Error(w, "delete failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAudit(r.Context(), srv.store, sd, "policy.delete", "policy", id, "deleted policy "+id)
 	http.Redirect(w, r, "/policies", http.StatusSeeOther)
 }
 

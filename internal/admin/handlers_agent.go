@@ -101,6 +101,8 @@ func (srv *Server) handleAgentNewPost(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	recordAudit(r.Context(), srv.store, sd, "agent.register", "agent", agentID,
+		"registered "+agentID)
 	http.Redirect(w, r, "/agents", http.StatusSeeOther)
 }
 
@@ -149,5 +151,7 @@ func (srv *Server) setAgentStatus(w http.ResponseWriter, r *http.Request, status
 		http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAudit(r.Context(), srv.store, sd, "agent."+string(status), "agent", agentID,
+		string(status)+" "+agentID)
 	http.Redirect(w, r, "/agents/"+agentID, http.StatusSeeOther)
 }

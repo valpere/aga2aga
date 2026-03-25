@@ -18,7 +18,7 @@ type dashboardPage struct {
 	Page         string
 	Session      sessionData
 	Stats        dashboardStats
-	RecentAgents []admin.RegisteredAgent
+	RecentEvents []admin.AuditEvent
 }
 
 func (srv *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -58,16 +58,16 @@ func (srv *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Recent = first 10 (already ordered by registered_at DESC from store)
-	recent := agents
-	if len(recent) > 10 {
-		recent = recent[:10]
+	recentEvents, err := srv.store.ListAuditEvents(r.Context(), sd.OrgID, 10)
+	if err != nil {
+		http.Error(w, "failed to load audit events", http.StatusInternalServerError)
+		return
 	}
 
 	srv.render(w, "dashboard.html", dashboardPage{
 		Page:         "dashboard",
 		Session:      sd,
 		Stats:        stats,
-		RecentAgents: recent,
+		RecentEvents: recentEvents,
 	})
 }

@@ -163,3 +163,82 @@ func TestSQLiteStore_PolicyRoundTrip(t *testing.T) {
 		t.Errorf("after delete len(policies) = %d, want 0", len(list))
 	}
 }
+
+func TestSQLiteStore_AuditRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	org := &admin.Organization{ID: "org-1", Name: "Acme", CreatedAt: time.Now().UTC()}
+	_ = s.CreateOrg(ctx, org)
+	u := &admin.User{ID: "user-1", OrgID: "org-1", Username: "alice", Password: "h", Role: admin.RoleAdmin, CreatedAt: time.Now().UTC()}
+	_ = s.CreateUser(ctx, u)
+
+	e := &admin.AuditEvent{
+		ID: "evt-1", OrgID: "org-1", UserID: "user-1", Username: "alice",
+		Action: "agent.register", TargetType: "agent", TargetID: "agent-alpha",
+		Detail: "registered agent-alpha", CreatedAt: time.Now().UTC(),
+	}
+	if err := s.AppendAuditEvent(ctx, e); err != nil {
+		t.Fatalf("AppendAuditEvent: %v", err)
+	}
+
+	events, err := s.ListAuditEvents(ctx, "org-1", 10)
+	if err != nil {
+		t.Fatalf("ListAuditEvents: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want 1", len(events))
+	}
+	if events[0].Action != "agent.register" {
+		t.Errorf("event.Action = %q, want %q", events[0].Action, "agent.register")
+	}
+	if events[0].Username != "alice" {
+		t.Errorf("event.Username = %q, want %q", events[0].Username, "alice")
+	}
+}
+
+func TestSQLiteStore_APIKeyRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	org := &admin.Organization{ID: "org-1", Name: "Acme", CreatedAt: time.Now().UTC()}
+	_ = s.CreateOrg(ctx, org)
+	u := &admin.User{ID: "user-1", OrgID: "org-1", Username: "alice", Password: "h", Role: admin.RoleAdmin, CreatedAt: time.Now().UTC()}
+	_ = s.CreateUser(ctx, u)
+
+	k := &admin.APIKey{
+		ID: "key-1", OrgID: "org-1", Name: "gateway-prod",
+		KeyHash: "abc123hash", Role: admin.RoleOperator,
+		CreatedBy: "user-1", CreatedAt: time.Now().UTC(),
+	}
+	if err := s.CreateAPIKey(ctx, k); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+
+	got, err := s.GetAPIKeyByHash(ctx, "abc123hash")
+	if err != nil {
+		t.Fatalf("GetAPIKeyByHash: %v", err)
+	}
+	if got.Name != "gateway-prod" {
+		t.Errorf("key.Name = %q, want %q", got.Name, "gateway-prod")
+	}
+	if got.RevokedAt.IsZero() == false {
+		t.Errorf("key.RevokedAt should be zero (active)")
+	}
+
+	list, err := s.ListAPIKeys(ctx, "org-1")
+	if err != nil {
+		t.Fatalf("ListAPIKeys: %v", err)
+	}
+	if len(list) != 1 {
+		t.Errorf("len(keys) = %d, want 1", len(list))
+	}
+
+	if err := s.RevokeAPIKey(ctx, "key-1"); err != nil {
+		t.Fatalf("RevokeAPIKey: %v", err)
+	}
+	got, _ = s.GetAPIKeyByHash(ctx, "abc123hash")
+	if got.RevokedAt.IsZero() {
+		t.Errorf("after revoke, key.RevokedAt should be non-zero")
+	}
+}

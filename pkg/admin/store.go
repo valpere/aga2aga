@@ -32,10 +32,26 @@ type OrgStore interface {
 	GetOrgByID(ctx context.Context, id string) (*Organization, error)
 }
 
+// AuditStore appends and retrieves AuditEvent records. Events are never modified.
+type AuditStore interface {
+	AppendAuditEvent(ctx context.Context, e *AuditEvent) error
+	ListAuditEvents(ctx context.Context, orgID string, limit int) ([]AuditEvent, error)
+}
+
+// APIKeyStore persists and retrieves APIKey records.
+type APIKeyStore interface {
+	CreateAPIKey(ctx context.Context, k *APIKey) error
+	GetAPIKeyByHash(ctx context.Context, hash string) (*APIKey, error)
+	ListAPIKeys(ctx context.Context, orgID string) ([]APIKey, error)
+	RevokeAPIKey(ctx context.Context, id string) error
+}
+
 // Store is the full persistence interface required by the admin server.
 type Store interface {
 	OrgStore
 	UserStore
 	AgentStore
 	PolicyStore
+	AuditStore
+	APIKeyStore
 }

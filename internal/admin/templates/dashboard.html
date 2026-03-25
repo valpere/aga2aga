@@ -18,23 +18,23 @@
 </div>
 
 <div class="card">
-  <h2>Recent Activity</h2>
-  {{if .RecentAgents}}
+  <h2>Recent Activity <a href="/audit" style="font-size:.8rem;font-weight:normal;margin-left:.5rem">View all</a></h2>
+  {{if .RecentEvents}}
   <table>
-    <thead><tr><th>Agent ID</th><th>Display Name</th><th>Status</th><th>Registered</th></tr></thead>
+    <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th></tr></thead>
     <tbody>
-    {{range .RecentAgents}}
+    {{range .RecentEvents}}
     <tr>
-      <td><a href="/agents/{{.AgentID}}">{{.AgentID}}</a></td>
-      <td>{{.DisplayName}}</td>
-      <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
-      <td class="text-muted">{{.RegisteredAt.Format "2006-01-02 15:04"}}</td>
+      <td class="text-muted">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+      <td>{{.Username}}</td>
+      <td><code>{{.Action}}</code></td>
+      <td>{{.Detail}}</td>
     </tr>
     {{end}}
     </tbody>
   </table>
   {{else}}
-  <p class="text-muted">No agents registered yet. <a href="/agents/new">Register one now.</a></p>
+  <p class="text-muted">No activity yet.</p>
   {{end}}
 </div>
 {{end}}
