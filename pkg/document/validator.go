@@ -288,9 +288,9 @@ func (v *Validator) ValidateSemantic(doc *Document) []ValidationError {
 	case protocol.AgentPromotion, protocol.AgentRollback:
 		return validateLifecycleTransition(doc)
 	case protocol.AgentQuarantine:
-		return validateTerminalTransition(doc, StateQuarantined)
+		return validateTerminalTransition(doc, StateQuarantined, "quarantine")
 	case protocol.AgentRetirement:
-		return validateTerminalTransition(doc, StateRetired)
+		return validateTerminalTransition(doc, StateRetired, "retirement")
 	}
 
 	return nil
@@ -299,21 +299,34 @@ func (v *Validator) ValidateSemantic(doc *Document) []ValidationError {
 // validateTerminalTransition validates from_status → toState when from_status is
 // present on the wire. When absent (omitempty), no error is returned — the
 // orchestrator MUST perform a state-store lookup before applying the transition.
-func validateTerminalTransition(doc *Document, toState LifecycleState) []ValidationError {
+// actionName is used in the self-action error message (e.g. "quarantine", "retirement").
+func validateTerminalTransition(doc *Document, toState LifecycleState, actionName string) []ValidationError {
+	var errs []ValidationError
+
 	fromStr, _ := doc.Extra["from_status"].(string)
-	if fromStr == "" {
-		// from_status is optional for quarantine/retirement; orchestrator handles lookup.
-		return nil
+	if fromStr != "" {
+		from := LifecycleState(fromStr)
+		if !ValidTransition(from, toState) {
+			errs = append(errs, ValidationError{
+				Layer:   LayerSemantic,
+				Field:   "from_status",
+				Message: fmt.Sprintf("transition %q → %q is not permitted by spec §16", from, toState),
+			})
+		}
 	}
-	from := LifecycleState(fromStr)
-	if !ValidTransition(from, toState) {
-		return []ValidationError{{
+
+	// Self-action check.
+	// SECURITY: doc.From is unverified until Phase 3 Ed25519 signing — defence-in-depth (issue #43).
+	targetAgent, _ := doc.Extra["target_agent"].(string)
+	if doc.From != "" && targetAgent != "" && doc.From == targetAgent {
+		errs = append(errs, ValidationError{
 			Layer:   LayerSemantic,
-			Field:   "from_status",
-			Message: fmt.Sprintf("transition %q → %q is not permitted by spec §16", from, toState),
-		}}
+			Field:   "from/target_agent",
+			Message: fmt.Sprintf("self-%s denied: agent %q cannot target itself", actionName, targetAgent),
+		})
 	}
-	return nil
+
+	return errs
 }
 
 func validateLifecycleTransition(doc *Document) []ValidationError {
@@ -344,24 +357,29 @@ func validateLifecycleTransition(doc *Document) []ValidationError {
 		})
 	}
 
-	// Self-promotion check.
+	// Self-action check for promotion and rollback.
 	// SECURITY: doc.From is unverified until Phase 3 Ed25519 signing — this is
 	// defence-in-depth today, becomes a security boundary in Phase 3 (issue #43).
-	if doc.Type == protocol.AgentPromotion {
-		targetAgent, ok := doc.Extra["target_agent"].(string)
-		if !ok || targetAgent == "" {
-			errs = append(errs, ValidationError{
-				Layer:   LayerSemantic,
-				Field:   "target_agent",
-				Message: "target_agent is required for self-promotion check",
-			})
-		} else if doc.From != "" && doc.From == targetAgent {
-			errs = append(errs, ValidationError{
-				Layer:   LayerSemantic,
-				Field:   "from/target_agent",
-				Message: fmt.Sprintf("self-promotion denied: agent %q cannot promote itself", targetAgent),
-			})
-		}
+	var actionName string
+	switch doc.Type {
+	case protocol.AgentPromotion:
+		actionName = "promotion"
+	case protocol.AgentRollback:
+		actionName = "rollback"
+	}
+	targetAgent, ok := doc.Extra["target_agent"].(string)
+	if !ok || targetAgent == "" {
+		errs = append(errs, ValidationError{
+			Layer:   LayerSemantic,
+			Field:   "target_agent",
+			Message: fmt.Sprintf("target_agent is required for self-%s check", actionName),
+		})
+	} else if doc.From != "" && doc.From == targetAgent {
+		errs = append(errs, ValidationError{
+			Layer:   LayerSemantic,
+			Field:   "from/target_agent",
+			Message: fmt.Sprintf("self-%s denied: agent %q cannot target itself", actionName, targetAgent),
+		})
 	}
 
 	return errs

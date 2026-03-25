@@ -298,6 +298,27 @@ func TestValidateSemantic(t *testing.T) {
 				"target_agent: agent-1\nreason: superseded\n---\n"),
 			wantErrors: 0,
 		},
+		{
+			name: "self-rollback rejected",
+			raw: []byte("---\ntype: agent.rollback\nversion: v1\nid: msg-1\nfrom: agent-1\n" +
+				"target_agent: agent-1\nfrom_status: active\nto_status: inactive\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "self-rollback",
+		},
+		{
+			name: "self-quarantine rejected",
+			raw: []byte("---\ntype: agent.quarantine\nversion: v1\nid: msg-1\nfrom: agent-1\n" +
+				"target_agent: agent-1\nreason: testing\nfrom_status: active\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "self-quarantine",
+		},
+		{
+			name: "self-retirement rejected",
+			raw: []byte("---\ntype: agent.retirement\nversion: v1\nid: msg-1\nfrom: agent-1\n" +
+				"target_agent: agent-1\nreason: testing\nfrom_status: active\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "self-retirement",
+		},
 	}
 
 	for _, tc := range tests {
