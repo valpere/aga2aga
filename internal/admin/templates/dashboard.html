@@ -1,0 +1,40 @@
+{{template "layout.html" .}}
+{{define "title"}}Dashboard — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <div class="actions">
+    <a href="/agents/new" class="btn btn-primary btn-sm">Register Agent</a>
+    <a href="/policies/new" class="btn btn-secondary btn-sm">Add Policy</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="value">{{.Stats.AgentsActive}}</div><div class="label">Active Agents</div></div>
+  <div class="stat"><div class="value">{{.Stats.AgentsSuspended}}</div><div class="label">Suspended</div></div>
+  <div class="stat"><div class="value">{{.Stats.AgentsRevoked}}</div><div class="label">Revoked</div></div>
+  <div class="stat"><div class="value">{{.Stats.PoliciesAllow}}</div><div class="label">Allow Policies</div></div>
+  <div class="stat"><div class="value">{{.Stats.PoliciesDeny}}</div><div class="label">Deny Policies</div></div>
+</div>
+
+<div class="card">
+  <h2>Recent Activity</h2>
+  {{if .RecentAgents}}
+  <table>
+    <thead><tr><th>Agent ID</th><th>Display Name</th><th>Status</th><th>Registered</th></tr></thead>
+    <tbody>
+    {{range .RecentAgents}}
+    <tr>
+      <td><a href="/agents/{{.AgentID}}">{{.AgentID}}</a></td>
+      <td>{{.DisplayName}}</td>
+      <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+      <td class="text-muted">{{.RegisteredAt.Format "2006-01-02 15:04"}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">No agents registered yet. <a href="/agents/new">Register one now.</a></p>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,61 @@
+{{template "layout.html" .}}
+{{define "title"}}{{.Agent.AgentID}} — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>{{.Agent.AgentID}}</h1>
+  <div class="actions">
+    <a href="/agents" class="btn btn-secondary btn-sm">Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Agent Details</h2>
+  <table>
+    <tr><th>Agent ID</th>  <td>{{.Agent.AgentID}}</td></tr>
+    <tr><th>Display Name</th><td>{{.Agent.DisplayName}}</td></tr>
+    <tr><th>Status</th>    <td><span class="badge badge-{{.Agent.Status}}">{{.Agent.Status}}</span></td></tr>
+    <tr><th>Registered By</th><td>{{.Agent.RegisteredBy}}</td></tr>
+    <tr><th>Registered At</th><td>{{.Agent.RegisteredAt.Format "2006-01-02 15:04:05 UTC"}}</td></tr>
+  </table>
+
+  {{if eq .Session.Role "admin"}}
+  <div class="mt1" style="display:flex;gap:.5rem;margin-top:1rem">
+    {{if eq (string .Agent.Status) "active"}}
+    <form method="POST" action="/agents/{{.Agent.AgentID}}/suspend">
+      <button class="btn btn-secondary">Suspend</button>
+    </form>
+    {{end}}
+    {{if eq (string .Agent.Status) "suspended"}}
+    <form method="POST" action="/agents/{{.Agent.AgentID}}/activate">
+      <button class="btn btn-primary">Activate</button>
+    </form>
+    <form method="POST" action="/agents/{{.Agent.AgentID}}/revoke">
+      <button class="btn btn-danger">Revoke</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+
+<div class="card">
+  <h2>Policies Involving This Agent</h2>
+  {{if .Policies}}
+  <table>
+    <thead><tr><th>Source</th><th>Target</th><th>Direction</th><th>Action</th><th>Priority</th></tr></thead>
+    <tbody>
+    {{range .Policies}}
+    <tr>
+      <td>{{.SourceID}}</td>
+      <td>{{.TargetID}}</td>
+      <td>{{.Direction}}</td>
+      <td><span class="badge badge-{{.Action}}">{{.Action}}</span></td>
+      <td>{{.Priority}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">No policies involve this agent yet.</p>
+  {{end}}
+</div>
+{{end}}

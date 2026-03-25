@@ -1,0 +1,54 @@
+{{template "layout.html" .}}
+{{define "title"}}{{if .IsNew}}Add Policy{{else}}Edit Policy{{end}} — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>{{if .IsNew}}Add Policy{{else}}Edit Policy{{end}}</h1>
+  <div class="actions">
+    <a href="/policies" class="btn btn-secondary btn-sm">Cancel</a>
+  </div>
+</div>
+
+<div class="card" style="max-width:600px">
+  {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+  <form method="POST" action="{{if .IsNew}}/policies/new{{else}}/policies/{{.Policy.ID}}/edit{{end}}">
+    <div class="form-group">
+      <label for="source_id">Source</label>
+      <select id="source_id" name="source_id">
+        <option value="*" {{if eq .Policy.SourceID "*"}}selected{{end}}>* (any)</option>
+        {{range .Agents}}
+        <option value="{{.AgentID}}" {{if eq $.Policy.SourceID .AgentID}}selected{{end}}>{{.AgentID}}{{if .DisplayName}} — {{.DisplayName}}{{end}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="target_id">Target</label>
+      <select id="target_id" name="target_id">
+        <option value="*" {{if eq .Policy.TargetID "*"}}selected{{end}}>* (any)</option>
+        {{range .Agents}}
+        <option value="{{.AgentID}}" {{if eq $.Policy.TargetID .AgentID}}selected{{end}}>{{.AgentID}}{{if .DisplayName}} — {{.DisplayName}}{{end}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="direction">Direction</label>
+      <select id="direction" name="direction">
+        <option value="unidirectional" {{if eq (string .Policy.Direction) "unidirectional"}}selected{{end}}>Unidirectional (source → target)</option>
+        <option value="bidirectional"  {{if eq (string .Policy.Direction) "bidirectional"}}selected{{end}}>Bidirectional (source ↔ target)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="action">Action</label>
+      <select id="action" name="action">
+        <option value="allow" {{if eq (string .Policy.Action) "allow"}}selected{{end}}>Allow</option>
+        <option value="deny"  {{if eq (string .Policy.Action) "deny"}}selected{{end}}>Deny</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="priority">Priority</label>
+      <input type="text" id="priority" name="priority" value="{{.Policy.Priority}}" placeholder="10">
+      <div class="form-hint">Higher priority policies are evaluated first. Default: 10.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">{{if .IsNew}}Add Policy{{else}}Save Changes{{end}}</button>
+  </form>
+</div>
+{{end}}
