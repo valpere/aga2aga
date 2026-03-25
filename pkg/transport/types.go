@@ -13,9 +13,9 @@ import (
 // calling Ack — callers MUST NOT derive it from document content or
 // Document.Extra, which is attacker-controlled.
 type Delivery struct {
-	Doc      *document.Document
-	MsgID    string    // opaque transport-layer token
-	RecvedAt time.Time // wall-clock time the delivery was received
+	Doc      *document.Document // parsed Skills Document — read-only after delivery
+	MsgID    string             // opaque transport-layer token; use only for Ack calls
+	RecvedAt time.Time          // wall-clock receive time; for monitoring, not business logic
 }
 
 // Transport is the pluggable message bus abstraction. Concrete implementations
@@ -26,8 +26,9 @@ type Transport interface {
 	Publish(ctx context.Context, topic string, doc *document.Document) error
 
 	// Subscribe returns a channel that yields deliveries received on topic.
-	// The channel is closed when the context is cancelled or an unrecoverable
-	// error occurs. Callers must drain the channel promptly.
+	// The channel is closed when ctx is cancelled or an unrecoverable error
+	// occurs (e.g., connection loss that cannot be retried). Callers must
+	// drain the channel promptly to avoid blocking the transport.
 	Subscribe(ctx context.Context, topic string) (<-chan Delivery, error)
 
 	// Ack acknowledges a specific message on a topic. topic and msgID must
