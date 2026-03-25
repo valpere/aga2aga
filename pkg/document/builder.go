@@ -17,6 +17,7 @@ type Builder struct {
 	from      string
 	to        StringOrList
 	execID    string
+	ttl       string
 	status    string
 	inReplyTo string
 	threadID  string
@@ -83,6 +84,14 @@ func (b *Builder) ThreadID(threadID string) *Builder {
 	return b
 }
 
+// TTL sets the ttl envelope field. Returns the Builder for chaining.
+// Use this instead of Field("ttl", ...) — ttl is an envelope field and must be
+// set on Envelope.TTL; Field("ttl",...) is rejected with a sticky error.
+func (b *Builder) TTL(ttl string) *Builder {
+	b.ttl = ttl
+	return b
+}
+
 // Field sets an arbitrary extra field (type-specific payload).
 // Returns the Builder for chaining. Envelope field names (id, from, to, version,
 // exec_id, status, in_reply_to, thread_id, etc.) are rejected with a sticky error
@@ -126,6 +135,7 @@ func (b *Builder) Build() (*Document, error) {
 			From:      b.from,
 			To:        b.to,
 			ExecID:    b.execID,
+			TTL:       b.ttl,
 			Status:    b.status,
 			InReplyTo: b.inReplyTo,
 			ThreadID:  b.threadID,
