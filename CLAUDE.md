@@ -128,7 +128,7 @@ internal/gateway/ MCP Gateway implementation
   - Self-action governance check (`from == target_agent`) enforced for all four types; fires independently of `from_status` presence
   - `--strict` mode: semantic errors are warnings by default, fatal with `--strict`
   - `DefaultValidator()` is a `sync.Once` singleton; all per-type `$def` schemas are pre-compiled eagerly in `NewValidator` — safe for concurrent use (no data race)
-- Builder: `NewBuilder` + fluent setters (`ID`, `From`, `To`, `ExecID`, `Status`, `InReplyTo`, `ThreadID`, `Body`, `Field`); `Build()` runs full validation; sticky-error guard rejects reserved envelope keys in `Field()`
+- Builder: `NewBuilder` + fluent setters (`ID`, `From`, `To`, `ExecID`, `TTL`, `Status`, `InReplyTo`, `ThreadID`, `Body`, `Field`); `Build()` runs full validation; sticky-error guard rejects reserved envelope keys in `Field()`
   - Convenience: `NewGenomeBuilder`, `NewSpawnProposalBuilder`, `NewTaskRequestBuilder`
 
 #### Implemented: cmd/aga
