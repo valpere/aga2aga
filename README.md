@@ -80,7 +80,7 @@ Phase 1 (Skills Document Engine) is complete. Phases 2-5 are planned.
 | Negotiation state machine | planned | 4 |
 | Gossip P2P transport | planned | 5 |
 
-See [ROADMAP.md](ROADMAP.md) for detailed phase plans.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed phase plans.
 
 ## Quick Start
 
@@ -177,11 +177,11 @@ docs/             Extended documentation
 
 ## Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — detailed architecture: data flow, package dependency graph, API surface, security model
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed architecture: data flow, package dependency graph, API surface, security model
 - [docs/API.md](docs/API.md) — full API reference: all exported types, functions, and CLI flags with examples
-- [CONTRIBUTING.md](CONTRIBUTING.md) — TDD workflow, commit conventions, PR process, DO_NOT_TOUCH rules
-- [SECURITY.md](SECURITY.md) — security invariants, trust boundaries, CWE references
-- [ROADMAP.md](ROADMAP.md) — phase plans and non-goals
+- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — TDD workflow, commit conventions, PR process, DO_NOT_TOUCH rules
+- [docs/SECURITY.md](docs/SECURITY.md) — security invariants, trust boundaries, CWE references
+- [docs/ROADMAP.md](docs/ROADMAP.md) — phase plans and non-goals
 
 ## License
 

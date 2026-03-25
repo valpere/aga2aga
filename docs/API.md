@@ -150,7 +150,7 @@ type Envelope struct {
 
 The 13 standard wire fields present in every document's YAML header.
 
-**Security:** `From` is a self-reported string. Authorization decisions MUST NOT be based on `From` alone until Phase 3 adds Ed25519 verification. See [SECURITY.md](../SECURITY.md).
+**Security:** `From` is a self-reported string. Authorization decisions MUST NOT be based on `From` alone until Phase 3 adds Ed25519 verification. See [SECURITY.md](SECURITY.md).
 
 #### type Document
 
