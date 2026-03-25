@@ -298,6 +298,48 @@ func TestValidateSemantic(t *testing.T) {
 				"target_agent: agent-1\nreason: superseded\n---\n"),
 			wantErrors: 0,
 		},
+		{
+			name: "self-rollback rejected",
+			raw: []byte("---\ntype: agent.rollback\nversion: v1\nid: msg-1\nfrom: agent-1\n" +
+				"target_agent: agent-1\nfrom_status: active\nto_status: inactive\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "self-rollback",
+		},
+		{
+			name: "self-quarantine rejected",
+			raw: []byte("---\ntype: agent.quarantine\nversion: v1\nid: msg-1\nfrom: agent-1\n" +
+				"target_agent: agent-1\nreason: testing\nfrom_status: active\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "self-quarantine",
+		},
+		{
+			name: "self-retirement rejected",
+			raw: []byte("---\ntype: agent.retirement\nversion: v1\nid: msg-1\nfrom: agent-1\n" +
+				"target_agent: agent-1\nreason: testing\nfrom_status: active\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "self-retirement",
+		},
+		{
+			name: "self-quarantine rejected even without from_status",
+			raw: []byte("---\ntype: agent.quarantine\nversion: v1\nid: msg-1\nfrom: agent-1\n" +
+				"target_agent: agent-1\nreason: testing\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "self-quarantine",
+		},
+		{
+			name: "self-retirement rejected even without from_status",
+			raw: []byte("---\ntype: agent.retirement\nversion: v1\nid: msg-1\nfrom: agent-1\n" +
+				"target_agent: agent-1\nreason: testing\n---\n"),
+			wantErrors: 1,
+			wantMsg:    "self-retirement",
+		},
+		{
+			name: "self-rollback rejected even without from_status",
+			raw: []byte("---\ntype: agent.rollback\nversion: v1\nid: msg-1\nfrom: agent-1\n" +
+				"target_agent: agent-1\n---\n"),
+			wantErrors: 2, // self-rollback + missing from_status/to_status
+			wantMsg:    "self-rollback",
+		},
 	}
 
 	for _, tc := range tests {

@@ -278,7 +278,7 @@ func collectSchemaErrors(ve *jsonschema.ValidationError, out *[]ValidationError)
 
 // ValidateSemantic performs Layer 3: semantic protocol rule checks.
 // Validates lifecycle transition legality for promotion, rollback, quarantine,
-// and retirement messages. Validates self-promotion denial for agent.promotion.
+// and retirement messages. Validates self-action denial for all four types.
 func (v *Validator) ValidateSemantic(doc *Document) []ValidationError {
 	if doc == nil {
 		return nil
@@ -288,36 +288,77 @@ func (v *Validator) ValidateSemantic(doc *Document) []ValidationError {
 	case protocol.AgentPromotion, protocol.AgentRollback:
 		return validateLifecycleTransition(doc)
 	case protocol.AgentQuarantine:
-		return validateTerminalTransition(doc, StateQuarantined)
+		return validateTerminalTransition(doc, StateQuarantined, "quarantine")
 	case protocol.AgentRetirement:
-		return validateTerminalTransition(doc, StateRetired)
+		return validateTerminalTransition(doc, StateRetired, "retirement")
 	}
 
 	return nil
 }
 
-// validateTerminalTransition validates from_status → toState when from_status is
-// present on the wire. When absent (omitempty), no error is returned — the
+// validateTerminalTransition validates a terminal lifecycle action (quarantine or retirement).
+// Transition check: only when from_status is present on the wire; when absent, the
 // orchestrator MUST perform a state-store lookup before applying the transition.
-func validateTerminalTransition(doc *Document, toState LifecycleState) []ValidationError {
+// Self-action check: always runs, regardless of from_status presence.
+// actionName labels error messages (e.g. "quarantine", "retirement").
+func validateTerminalTransition(doc *Document, toState LifecycleState, actionName string) []ValidationError {
+	var errs []ValidationError
+
 	fromStr, _ := doc.Extra["from_status"].(string)
-	if fromStr == "" {
-		// from_status is optional for quarantine/retirement; orchestrator handles lookup.
-		return nil
+	if fromStr != "" {
+		from := LifecycleState(fromStr)
+		if !ValidTransition(from, toState) {
+			errs = append(errs, ValidationError{
+				Layer:   LayerSemantic,
+				Field:   "from_status",
+				Message: fmt.Sprintf("transition %q → %q is not permitted by spec §16", from, toState),
+			})
+		}
 	}
-	from := LifecycleState(fromStr)
-	if !ValidTransition(from, toState) {
-		return []ValidationError{{
+
+	// Self-action check.
+	// SECURITY: doc.From is unverified until Phase 3 Ed25519 signing — defence-in-depth (issue #43).
+	targetAgent, _ := doc.Extra["target_agent"].(string)
+	if doc.From != "" && targetAgent != "" && doc.From == targetAgent {
+		errs = append(errs, ValidationError{
 			Layer:   LayerSemantic,
-			Field:   "from_status",
-			Message: fmt.Sprintf("transition %q → %q is not permitted by spec §16", from, toState),
-		}}
+			Field:   "from/target_agent",
+			Message: fmt.Sprintf("self-%s denied: agent %q cannot target itself", actionName, targetAgent),
+		})
 	}
-	return nil
+
+	return errs
 }
 
 func validateLifecycleTransition(doc *Document) []ValidationError {
 	var errs []ValidationError
+
+	// Self-action check runs first — independent of from_status/to_status presence.
+	// This ensures the check fires even when status fields are absent (e.g. callers
+	// invoking ValidateSemantic directly without a prior structural validation pass).
+	// SECURITY: doc.From is unverified until Phase 3 Ed25519 signing — this is
+	// defence-in-depth today, becomes a security boundary in Phase 3 (issue #43).
+	var actionName string
+	switch doc.Type {
+	case protocol.AgentPromotion:
+		actionName = "promotion"
+	case protocol.AgentRollback:
+		actionName = "rollback"
+	}
+	targetAgent, ok := doc.Extra["target_agent"].(string)
+	if !ok || targetAgent == "" {
+		errs = append(errs, ValidationError{
+			Layer:   LayerSemantic,
+			Field:   "target_agent",
+			Message: fmt.Sprintf("target_agent is required for self-%s check", actionName),
+		})
+	} else if doc.From != "" && doc.From == targetAgent {
+		errs = append(errs, ValidationError{
+			Layer:   LayerSemantic,
+			Field:   "from/target_agent",
+			Message: fmt.Sprintf("self-%s denied: agent %q cannot target itself", actionName, targetAgent),
+		})
+	}
 
 	fromStr, _ := doc.Extra["from_status"].(string)
 	toStr, _ := doc.Extra["to_status"].(string)
@@ -326,11 +367,12 @@ func validateLifecycleTransition(doc *Document) []ValidationError {
 	// governance logs. The structural layer should already have caught absence, but
 	// this provides defence-in-depth and unambiguous error messages.
 	if fromStr == "" || toStr == "" {
-		return []ValidationError{{
+		errs = append(errs, ValidationError{
 			Layer:   LayerSemantic,
 			Field:   "from_status/to_status",
 			Message: "from_status and to_status are required for lifecycle transition",
-		}}
+		})
+		return errs
 	}
 
 	from := LifecycleState(fromStr)
@@ -342,26 +384,6 @@ func validateLifecycleTransition(doc *Document) []ValidationError {
 			Field:   "from_status/to_status",
 			Message: fmt.Sprintf("transition %q → %q is not permitted by spec §16", from, to),
 		})
-	}
-
-	// Self-promotion check.
-	// SECURITY: doc.From is unverified until Phase 3 Ed25519 signing — this is
-	// defence-in-depth today, becomes a security boundary in Phase 3 (issue #43).
-	if doc.Type == protocol.AgentPromotion {
-		targetAgent, ok := doc.Extra["target_agent"].(string)
-		if !ok || targetAgent == "" {
-			errs = append(errs, ValidationError{
-				Layer:   LayerSemantic,
-				Field:   "target_agent",
-				Message: "target_agent is required for self-promotion check",
-			})
-		} else if doc.From != "" && doc.From == targetAgent {
-			errs = append(errs, ValidationError{
-				Layer:   LayerSemantic,
-				Field:   "from/target_agent",
-				Message: fmt.Sprintf("self-promotion denied: agent %q cannot promote itself", targetAgent),
-			})
-		}
 	}
 
 	return errs
