@@ -2,9 +2,21 @@ package transport
 
 import (
 	"context"
+	"time"
 
 	"github.com/valpere/aga2aga/pkg/document"
 )
+
+// Delivery pairs a received document with its transport-layer delivery token.
+// The MsgID is opaque and assigned by the concrete transport on receive
+// (e.g., a Redis Streams entry ID). It is the only authoritative source for
+// calling Ack — callers MUST NOT derive it from document content or
+// Document.Extra, which is attacker-controlled.
+type Delivery struct {
+	Doc      *document.Document // parsed Skills Document — read-only after delivery
+	MsgID    string             // opaque transport-layer token; use only for Ack calls
+	RecvedAt time.Time          // wall-clock receive time; for monitoring, not business logic
+}
 
 // Transport is the pluggable message bus abstraction. Concrete implementations
 // (Redis Streams in Phase 2, Gossip P2P in Phase 5) satisfy this interface.
@@ -13,15 +25,16 @@ type Transport interface {
 	// Publish sends doc to the named topic.
 	Publish(ctx context.Context, topic string, doc *document.Document) error
 
-	// Subscribe returns a channel that yields documents received on topic.
-	Subscribe(ctx context.Context, topic string) (<-chan *document.Document, error)
+	// Subscribe returns a channel that yields deliveries received on topic.
+	// The channel is closed when ctx is cancelled or an unrecoverable error
+	// occurs (e.g., connection loss that cannot be retried). Callers must
+	// drain the channel promptly to avoid blocking the transport.
+	Subscribe(ctx context.Context, topic string) (<-chan Delivery, error)
 
-	// Ack acknowledges a message by its transport-layer message ID.
-	// msgID is the opaque delivery token assigned by the concrete transport
-	// on receive (e.g., a Redis Streams entry ID). Callers MUST obtain msgID
-	// from the transport's internal pending map keyed on document ID — never
-	// from document content or Document.Extra, which is attacker-controlled.
-	Ack(ctx context.Context, msgID string) error
+	// Ack acknowledges a specific message on a topic. topic and msgID must
+	// come from a Delivery obtained via Subscribe — never from document
+	// content or Document.Extra, which is attacker-controlled.
+	Ack(ctx context.Context, topic, msgID string) error
 
 	// Close shuts down the transport and releases resources.
 	Close() error
