@@ -131,6 +131,12 @@ internal/gateway/ MCP Gateway implementation
 - Builder: `NewBuilder` + fluent setters (`ID`, `From`, `To`, `ExecID`, `TTL`, `Status`, `InReplyTo`, `ThreadID`, `Body`, `Field`); `Build()` runs full validation; sticky-error guard rejects reserved envelope keys in `Field()`
   - Convenience: `NewGenomeBuilder`, `NewSpawnProposalBuilder`, `NewTaskRequestBuilder`
 
+#### Implemented: pkg/transport, pkg/identity, pkg/negotiation (stubs)
+
+- `pkg/transport` — `Transport` interface: `Publish`, `Subscribe`, `Ack` (with pending-map source contract), `Close`; context on all I/O methods; no external imports
+- `pkg/identity` — `Identity` struct (`Pseudonym`, `PublicKey ed25519.PublicKey`); `Signer` interface: `Sign`, `Verify(data, sig []byte) (bool, error)` (error-aware for config faults, CWE-252)
+- `pkg/negotiation` — `NegotiationState` type; 8 constants derived from `pkg/protocol` (no drift); `NegotiationTransition` stub (always false, NOT for gate use before Phase 4)
+
 #### Implemented: cmd/aga
 
 - `aga validate <file>` — 3-layer validation; `--strict` flag
