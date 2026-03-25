@@ -85,6 +85,8 @@ func (b *Builder) ThreadID(threadID string) *Builder {
 }
 
 // TTL sets the ttl envelope field. Returns the Builder for chaining.
+// The value is an opaque string; the protocol accepts any format (e.g., Go
+// duration strings such as "30s", "1h"). Build() does not validate the format.
 // Use this instead of Field("ttl", ...) — ttl is an envelope field and must be
 // set on Envelope.TTL; Field("ttl",...) is rejected with a sticky error.
 func (b *Builder) TTL(ttl string) *Builder {
