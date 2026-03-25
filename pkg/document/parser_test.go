@@ -388,3 +388,46 @@ func TestParseSerialize_RoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestParseSerialize_ExtraRoundTrip verifies that type-specific Extra fields
+// survive a full parse → serialize → parse cycle without being dropped or corrupted.
+func TestParseSerialize_ExtraRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// valid_promotion.md has known Extra fields: target_agent, from_status, to_status.
+	raw, readErr := os.ReadFile(filepath.Join(fixtureDir, "valid_promotion.md"))
+	if readErr != nil {
+		t.Fatalf("ReadFile: %v", readErr)
+	}
+
+	doc, err := document.Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	serialized, err := document.Serialize(doc)
+	if err != nil {
+		t.Fatalf("Serialize: %v", err)
+	}
+
+	doc2, err := document.Parse(serialized)
+	if err != nil {
+		t.Fatalf("Parse(Serialize(doc)): %v", err)
+	}
+
+	for _, key := range []string{"target_agent", "from_status", "to_status"} {
+		orig, ok1 := doc.Extra[key]
+		got, ok2 := doc2.Extra[key]
+		if !ok1 {
+			t.Errorf("original doc missing Extra[%q]", key)
+			continue
+		}
+		if !ok2 {
+			t.Errorf("round-trip dropped Extra[%q]", key)
+			continue
+		}
+		if orig != got {
+			t.Errorf("Extra[%q] = %v, want %v", key, got, orig)
+		}
+	}
+}

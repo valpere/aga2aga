@@ -6,6 +6,42 @@ import (
 	"testing"
 )
 
+// TestValidate_StrictSemanticError verifies that a document with only a semantic
+// error (passes structural + schema) exits 0 without --strict and non-zero with.
+func TestValidate_StrictSemanticError(t *testing.T) {
+	// valid_quarantine_bad_transition.md: quarantine with from_status: proposed.
+	// proposed → quarantined is not a valid transition → semantic error.
+	// Structural and schema both pass.
+	fixture := "../../tests/testdata/valid_quarantine_bad_transition.md"
+
+	t.Run("without_strict_exits_ok", func(t *testing.T) {
+		stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+		cmd := newRootCmd()
+		cmd.SetOut(stdout)
+		cmd.SetErr(stderr)
+		cmd.SetArgs([]string{"validate", fixture})
+		if err := cmd.Execute(); err != nil {
+			t.Errorf("Execute() without --strict = %v, want nil (semantic errors are non-fatal)", err)
+		}
+	})
+
+	t.Run("with_strict_exits_error", func(t *testing.T) {
+		stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+		cmd := newRootCmd()
+		cmd.SetOut(stdout)
+		cmd.SetErr(stderr)
+		cmd.SetArgs([]string{"validate", "--strict", fixture})
+		err := cmd.Execute()
+		if err == nil {
+			t.Fatal("Execute() --strict = nil, want error (semantic errors are fatal with --strict)")
+		}
+		combined := stderr.String() + err.Error()
+		if !strings.Contains(combined, "semantic") && !strings.Contains(combined, "transition") {
+			t.Errorf("expected semantic/transition mention in output, got stderr=%q err=%v", stderr.String(), err)
+		}
+	})
+}
+
 func TestValidate_ValidFile(t *testing.T) {
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	cmd := newRootCmd()
