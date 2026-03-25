@@ -174,6 +174,7 @@ func TestBuilder_Chaining(t *testing.T) {
 		From("a").
 		To("b").
 		ExecID("e1").
+		TTL("").
 		Status("").
 		InReplyTo("").
 		ThreadID("").

@@ -94,7 +94,7 @@ func (b *Builder) TTL(ttl string) *Builder {
 
 // Field sets an arbitrary extra field (type-specific payload).
 // Returns the Builder for chaining. Envelope field names (id, from, to, version,
-// exec_id, status, in_reply_to, thread_id, etc.) are rejected with a sticky error
+// exec_id, ttl, status, in_reply_to, thread_id, etc.) are rejected with a sticky error
 // returned from Build() — use the dedicated typed setters for those fields.
 // Subsequent Field() calls after a reserved-key violation are silently dropped and
 // only the first violation is recorded, preventing error flooding while preserving
