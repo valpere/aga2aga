@@ -16,6 +16,7 @@ func newRootCmd() *cobra.Command {
 		Version: protocol.ProtocolVersion,
 	}
 	root.SetVersionTemplate("aga protocol version {{.Version}}\n")
+	root.AddCommand(newValidateCmd())
 	return root
 }
 
