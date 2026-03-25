@@ -234,6 +234,39 @@ Post collapsible PR comment if enabled.
 
 ---
 
+## STEP 8.5: Wait for CI
+
+After the Arbiter push, verify CI passes before attempting merge. The repo ruleset requires PRs but **not** passing status checks — `--auto` will complete immediately even with CI failures.
+
+```bash
+SHA=$(gh pr view {number} --repo valpere/aga2aga --json headRefOid --jq '.headRefOid')
+
+for i in $(seq 1 60); do
+  STATUS=$(gh api repos/valpere/aga2aga/commits/$SHA/check-runs --jq '
+    if .check_runs | length == 0 then "pending"
+    elif ([.check_runs[] | select(.conclusion == "failure" or .conclusion == "cancelled")] | length) > 0 then "failure"
+    elif ([.check_runs[] | select(.status != "completed")] | length) > 0 then "pending"
+    else "success"
+    end')
+  case "$STATUS" in
+    success) echo "CI passed"; break ;;
+    failure) echo "CI FAILED — do NOT merge. Fix lint/test errors first."; exit 1 ;;
+    pending) echo "CI pending... ($((i * 5))s)"; sleep 5 ;;
+  esac
+done
+
+if [ "$STATUS" != "success" ]; then
+  echo "WARNING: CI still pending after 5 minutes"
+  gh pr checks {number} --repo valpere/aga2aga
+  echo "Do NOT merge until CI is green."
+  exit 1
+fi
+```
+
+If CI fails: **stop**. Do NOT proceed to auto-merge. Report the failure to the user. Fix the lint/test errors in a new commit on the same branch, push, and re-run from STEP 8.5.
+
+---
+
 ## STEP 9: Auto-merge
 
 The `main` branch requires a PR (ruleset "prs"). Auto-merge is enabled on the repo, so `--auto` queues the merge and GitHub completes it once all required checks pass.

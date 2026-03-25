@@ -117,5 +117,6 @@ If fix-review timed out waiting for merge, check `gh pr view {pr-number} --json 
 - Never skip the TDD cycle — tests MUST fail before implementation
 - Never skip parallel review — all three agents must run
 - Never merge without fix-review — even if parallel review finds nothing
+- **Never merge without green CI** — `gh pr checks {number}` must show all checks passing before merge; the repo ruleset does NOT require passing checks so auto-merge will complete even with failures
 - Branch must have a corresponding open issue — no orphan branches
 - `go test ./... && go vet ./...` must be green before creating the PR
