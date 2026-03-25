@@ -98,14 +98,15 @@ Fitness is a weighted score (quality 35%, safety 15%, reliability 20%, latency 1
 ### Package Structure
 
 ```
-cmd/gateway/   MCP Gateway binary
-cmd/aga2aga/       CLI tool                                      ← DONE (issue #21)
-pkg/document/  Skills Document parser, validator, builder   ← DONE (Phase 1)
-pkg/protocol/  Message types and registry                   ← DONE (issue #15)
-pkg/transport/ Transport abstraction (Redis, Gossip)
-pkg/identity/  Ed25519 identity and trust
-pkg/negotiation/ Negotiation protocol engine
-internal/gateway/ MCP Gateway implementation
+cmd/aga2aga/      CLI tool (aga2aga validate/create/inspect)  ← DONE (issue #21)
+cmd/gateway/      MCP Gateway binary                          (Phase 2)
+pkg/document/     Skills Document parser, validator, builder  ← DONE (Phase 1)
+pkg/protocol/     Message types and registry                  ← DONE (issue #15)
+pkg/transport/    Transport abstraction (Redis, Gossip)       (stub)
+pkg/identity/     Ed25519 identity and trust                  (stub)
+pkg/negotiation/  Negotiation protocol engine                 (stub)
+internal/gateway/ MCP Gateway implementation                  (Phase 2)
+docs/             All project documentation
 ```
 
 #### Implemented: pkg/protocol
@@ -117,7 +118,7 @@ internal/gateway/ MCP Gateway implementation
 #### Implemented: pkg/document
 
 - `StringOrList` — scalar/sequence YAML type for `to:` field
-- `Envelope` — all 14 wire fields; `From` is unverified until Phase 3
+- `Envelope` — 13 wire fields; `From` is unverified until Phase 3
 - `Document` — `Envelope` + `Extra map[string]any` + `Body` + `Raw`
 - `As[T]` — YAML round-trip to typed struct; strips all Envelope keys from `Extra` first (injection defence)
 - Typed structs for all 24 message types across 5 files (`types_task`, `types_genome`, `types_lifecycle`, `types_spawn`, `types_evaluation`)
