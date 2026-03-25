@@ -87,6 +87,8 @@ func (b *Builder) ThreadID(threadID string) *Builder {
 // Returns the Builder for chaining. Envelope field names (id, from, to, version,
 // exec_id, status, in_reply_to, thread_id, etc.) are rejected with a sticky error
 // returned from Build() — use the dedicated typed setters for those fields.
+// Subsequent Field() calls after a reserved-key violation are silently dropped;
+// only the first violation is recorded.
 func (b *Builder) Field(key string, value any) *Builder {
 	if _, reserved := envelopeKeys[key]; reserved {
 		if b.fieldErr == nil {

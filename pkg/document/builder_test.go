@@ -110,6 +110,37 @@ func TestBuilder_Field_SetsExtra(t *testing.T) {
 	}
 }
 
+// TestBuilder_Field_StickyError verifies only the first reserved-key violation is recorded
+// and subsequent Field() calls (even with different reserved keys) are silently dropped.
+func TestBuilder_Field_StickyError(t *testing.T) {
+	_, err := minTaskRequest().
+		Field("type", "injected").    // first violation — recorded
+		Field("version", "injected"). // second violation — silently dropped
+		Field("id", "injected").      // third violation — silently dropped
+		Build()
+	if err == nil {
+		t.Fatal("Build() expected error for reserved key, got nil")
+	}
+	if !strings.Contains(err.Error(), "\"type\"") {
+		t.Errorf("error = %v; expected first violation key %q to appear", err, "type")
+	}
+}
+
+// TestBuilder_Build_MapIndependence verifies Build() copies extra so later mutations
+// to the builder do not affect the returned Document.
+func TestBuilder_Build_MapIndependence(t *testing.T) {
+	b := minTaskRequest().Field("key1", "value1")
+	doc, err := b.Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	// Mutate builder after Build() — should not affect doc.Extra.
+	b.Field("key2", "value2")
+	if _, ok := doc.Extra["key2"]; ok {
+		t.Error("doc.Extra was mutated after Build() — builder and document share the same map")
+	}
+}
+
 // TestBuilder_AutoVersion verifies Build() always sets version to v1.
 func TestBuilder_AutoVersion(t *testing.T) {
 	doc, err := minTaskRequest().Build()
@@ -159,6 +190,7 @@ func TestBuilder_Chaining(t *testing.T) {
 }
 
 // TestBuilder_Field_RejectsEnvelopeKeys verifies Field() rejects reserved envelope key names.
+// The reservedKeys list must match the envelopeKeys map in types.go — keep in sync.
 func TestBuilder_Field_RejectsEnvelopeKeys(t *testing.T) {
 	reservedKeys := []string{"type", "version", "id", "from", "to", "exec_id",
 		"status", "in_reply_to", "thread_id", "created_at", "signature", "signing_key_id"}
@@ -211,13 +243,21 @@ func TestBuilder_ThreadID_EnvelopeField(t *testing.T) {
 
 // TestBuilder_Build_ReportsAllErrors verifies Build() reports all validation errors, not just the first.
 func TestBuilder_Build_ReportsAllErrors(t *testing.T) {
-	_, err := document.NewBuilder(protocol.TaskRequest).Build() // missing id, from, to, exec_id, step
+	// task.request requires id, from, to, exec_id, step — 5 missing fields → 5 errors.
+	_, err := document.NewBuilder(protocol.TaskRequest).Build()
 	if err == nil {
 		t.Fatal("Build() expected error, got nil")
 	}
-	// Multiple errors should appear in the message (separated by "; ").
-	if !strings.Contains(err.Error(), "; ") {
-		t.Errorf("error = %v; want multiple errors separated by '; '", err)
+	msg := err.Error()
+	// Multiple errors appear in the message separated by "; ".
+	if !strings.Contains(msg, "; ") {
+		t.Errorf("error = %v; want multiple errors separated by '; '", msg)
+	}
+	// Each missing field should appear in the combined message.
+	for _, field := range []string{"id", "from", "to", "exec_id", "step"} {
+		if !strings.Contains(msg, field) {
+			t.Errorf("error message missing field %q: %v", field, msg)
+		}
 	}
 }
 
