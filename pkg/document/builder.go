@@ -12,17 +12,17 @@ import (
 // Builder is NOT thread-safe — do not share across goroutines.
 // Call Build() to obtain a validated *Document.
 type Builder struct {
-	msgType    protocol.MessageType
-	id         string
-	from       string
-	to         StringOrList
-	execID     string
-	status     string
-	inReplyTo  string
-	threadID   string
-	body       string
-	extra      map[string]any
-	fieldErr   error // sticky error set by Field() for reserved key violations
+	msgType   protocol.MessageType
+	id        string
+	from      string
+	to        StringOrList
+	execID    string
+	status    string
+	inReplyTo string
+	threadID  string
+	body      string
+	extra     map[string]any
+	fieldErr  error // sticky error set by Field() for reserved key violations
 }
 
 // NewBuilder creates a Builder for the given message type.
