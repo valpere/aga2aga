@@ -72,7 +72,7 @@ func TestReadAndParseFile(t *testing.T) {
 			if tc.wantNonNil && doc == nil {
 				t.Fatal("readAndParseFile() returned nil doc")
 			}
-			if tc.wantType != "" && string(doc.Type) != tc.wantType {
+			if doc != nil && tc.wantType != "" && string(doc.Type) != tc.wantType {
 				t.Errorf("doc.Type = %q, want %q", doc.Type, tc.wantType)
 			}
 		})
