@@ -174,6 +174,7 @@ func TestBuilder_Chaining(t *testing.T) {
 		From("a").
 		To("b").
 		ExecID("e1").
+		TTL("").
 		Status("").
 		InReplyTo("").
 		ThreadID("").
@@ -193,7 +194,7 @@ func TestBuilder_Chaining(t *testing.T) {
 // The reservedKeys list must match the envelopeKeys map in types.go — keep in sync.
 func TestBuilder_Field_RejectsEnvelopeKeys(t *testing.T) {
 	reservedKeys := []string{"type", "version", "id", "from", "to", "exec_id",
-		"status", "in_reply_to", "thread_id", "created_at", "signature", "signing_key_id"}
+		"ttl", "status", "in_reply_to", "thread_id", "created_at", "signature", "signing_key_id"}
 
 	for _, key := range reservedKeys {
 		t.Run(key, func(t *testing.T) {
@@ -205,6 +206,28 @@ func TestBuilder_Field_RejectsEnvelopeKeys(t *testing.T) {
 				t.Errorf("error = %v; want 'reserved envelope key'", err)
 			}
 		})
+	}
+}
+
+// TestBuilder_TTL_EnvelopeField verifies TTL() sets Envelope.TTL correctly.
+func TestBuilder_TTL_EnvelopeField(t *testing.T) {
+	doc, err := minTaskRequest().TTL("30s").Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if doc.TTL != "30s" {
+		t.Errorf("TTL = %q, want 30s", doc.TTL)
+	}
+}
+
+// TestBuilder_TTL_ZeroValueWhenAbsent verifies TTL is empty when not set.
+func TestBuilder_TTL_ZeroValueWhenAbsent(t *testing.T) {
+	doc, err := minTaskRequest().Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if doc.TTL != "" {
+		t.Errorf("TTL = %q, want empty when not set", doc.TTL)
 	}
 }
 
