@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/valpere/aga2aga/pkg/admin"
@@ -96,7 +97,7 @@ func (s *SQLiteStore) GetOrgByID(ctx context.Context, id string) (*admin.Organiz
 	if err := row.Scan(&o.ID, &o.Name, &createdAt); err != nil {
 		return nil, err
 	}
-	o.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	o.CreatedAt = parseRFC3339(createdAt)
 	return &o, nil
 }
 
@@ -129,7 +130,7 @@ func scanUser(row *sql.Row) (*admin.User, error) {
 		return nil, err
 	}
 	u.Role = admin.Role(role)
-	u.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	u.CreatedAt = parseRFC3339(createdAt)
 	return &u, nil
 }
 
@@ -168,7 +169,7 @@ func (s *SQLiteStore) ListAgents(ctx context.Context, orgID string) ([]admin.Reg
 			return nil, err
 		}
 		a.Status = admin.AgentStatus(status)
-		a.RegisteredAt, _ = time.Parse(time.RFC3339, registeredAt)
+		a.RegisteredAt = parseRFC3339(registeredAt)
 		agents = append(agents, a)
 	}
 	return agents, rows.Err()
@@ -188,7 +189,7 @@ func scanAgent(row *sql.Row) (*admin.RegisteredAgent, error) {
 		return nil, err
 	}
 	a.Status = admin.AgentStatus(status)
-	a.RegisteredAt, _ = time.Parse(time.RFC3339, registeredAt)
+	a.RegisteredAt = parseRFC3339(registeredAt)
 	return &a, nil
 }
 
@@ -229,7 +230,7 @@ func (s *SQLiteStore) ListPolicies(ctx context.Context, orgID string) ([]admin.C
 		}
 		p.Direction = admin.PolicyDirection(direction)
 		p.Action = admin.PolicyAction(action)
-		p.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		p.CreatedAt = parseRFC3339(createdAt)
 		policies = append(policies, p)
 	}
 	return policies, rows.Err()
@@ -250,6 +251,17 @@ func (s *SQLiteStore) DeletePolicy(ctx context.Context, id string) error {
 	return err
 }
 
+// parseRFC3339 parses an RFC3339 timestamp stored in the database. On parse
+// failure it logs the bad value and returns the zero time so callers always
+// receive a valid time.Time.
+func parseRFC3339(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		log.Printf("sqlite: failed to parse RFC3339 timestamp %q: %v", s, err)
+	}
+	return t
+}
+
 func scanPolicy(row *sql.Row) (*admin.CommunicationPolicy, error) {
 	var p admin.CommunicationPolicy
 	var direction, action, createdAt string
@@ -259,6 +271,6 @@ func scanPolicy(row *sql.Row) (*admin.CommunicationPolicy, error) {
 	}
 	p.Direction = admin.PolicyDirection(direction)
 	p.Action = admin.PolicyAction(action)
-	p.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	p.CreatedAt = parseRFC3339(createdAt)
 	return &p, nil
 }

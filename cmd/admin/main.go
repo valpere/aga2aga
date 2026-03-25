@@ -86,7 +86,6 @@ func ensureDefaultAdmin(store admin.Store) error {
 	ctx := context.Background()
 
 	const orgID = "default"
-	const userID = "admin-1"
 
 	if _, err := store.GetOrgByID(ctx, orgID); err == nil {
 		return nil // already seeded
@@ -109,7 +108,6 @@ func ensureDefaultAdmin(store admin.Store) error {
 		Role:      admin.RoleAdmin,
 		CreatedAt: time.Now().UTC(),
 	}
-	_ = userID
 	if err := store.CreateUser(ctx, u); err != nil {
 		return fmt.Errorf("create admin user: %w", err)
 	}

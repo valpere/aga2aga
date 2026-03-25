@@ -27,8 +27,16 @@ func (srv *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sd := sessionFromCtx(r)
-	agents, _ := srv.store.ListAgents(r.Context(), sd.OrgID)
-	policies, _ := srv.store.ListPolicies(r.Context(), sd.OrgID)
+	agents, err := srv.store.ListAgents(r.Context(), sd.OrgID)
+	if err != nil {
+		http.Error(w, "failed to load agents", http.StatusInternalServerError)
+		return
+	}
+	policies, err := srv.store.ListPolicies(r.Context(), sd.OrgID)
+	if err != nil {
+		http.Error(w, "failed to load policies", http.StatusInternalServerError)
+		return
+	}
 
 	var stats dashboardStats
 	for _, a := range agents {

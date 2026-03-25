@@ -27,7 +27,11 @@ type policyEditPage struct {
 
 func (srv *Server) handlePolicyList(w http.ResponseWriter, r *http.Request) {
 	sd := sessionFromCtx(r)
-	policies, _ := srv.store.ListPolicies(r.Context(), sd.OrgID)
+	policies, err := srv.store.ListPolicies(r.Context(), sd.OrgID)
+	if err != nil {
+		http.Error(w, "failed to load policies", http.StatusInternalServerError)
+		return
+	}
 	srv.render(w, "policies_list.html", policyListPage{
 		Page:     "policies",
 		Session:  sd,
@@ -38,7 +42,11 @@ func (srv *Server) handlePolicyList(w http.ResponseWriter, r *http.Request) {
 
 func (srv *Server) handlePolicyNewGet(w http.ResponseWriter, r *http.Request) {
 	sd := sessionFromCtx(r)
-	agents, _ := srv.store.ListAgents(r.Context(), sd.OrgID)
+	agents, err := srv.store.ListAgents(r.Context(), sd.OrgID)
+	if err != nil {
+		http.Error(w, "failed to load agents", http.StatusInternalServerError)
+		return
+	}
 	srv.render(w, "policy_edit.html", policyEditPage{
 		Page:    "policies",
 		Session: sd,
@@ -52,18 +60,18 @@ func (srv *Server) handlePolicyNewPost(w http.ResponseWriter, r *http.Request) {
 	sd := sessionFromCtx(r)
 	p, err := srv.policyFromForm(r, sd.OrgID, sd.UserID)
 	if err != nil {
-		agents, _ := srv.store.ListAgents(r.Context(), sd.OrgID)
 		srv.render(w, "policy_edit.html", policyEditPage{
-			Page: "policies", Session: sd, Policy: p, Agents: agents, IsNew: true, Error: err.Error(),
+			Page: "policies", Session: sd, Policy: p,
+			Agents: srv.listAgentsForForm(r, sd.OrgID), IsNew: true, Error: err.Error(),
 		})
 		return
 	}
 	p.ID = uuid.New().String()
 	p.CreatedAt = time.Now().UTC()
 	if err := srv.store.CreatePolicy(r.Context(), &p); err != nil {
-		agents, _ := srv.store.ListAgents(r.Context(), sd.OrgID)
 		srv.render(w, "policy_edit.html", policyEditPage{
-			Page: "policies", Session: sd, Policy: p, Agents: agents, IsNew: true,
+			Page: "policies", Session: sd, Policy: p,
+			Agents: srv.listAgentsForForm(r, sd.OrgID), IsNew: true,
 			Error: "Failed to save policy: " + err.Error(),
 		})
 		return
@@ -79,9 +87,9 @@ func (srv *Server) handlePolicyEditGet(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	agents, _ := srv.store.ListAgents(r.Context(), sd.OrgID)
 	srv.render(w, "policy_edit.html", policyEditPage{
-		Page: "policies", Session: sd, Policy: *p, Agents: agents, IsNew: false,
+		Page: "policies", Session: sd, Policy: *p,
+		Agents: srv.listAgentsForForm(r, sd.OrgID), IsNew: false,
 	})
 }
 
@@ -90,17 +98,17 @@ func (srv *Server) handlePolicyEditPost(w http.ResponseWriter, r *http.Request) 
 	id := r.PathValue("id")
 	p, err := srv.policyFromForm(r, sd.OrgID, sd.UserID)
 	if err != nil {
-		agents, _ := srv.store.ListAgents(r.Context(), sd.OrgID)
 		srv.render(w, "policy_edit.html", policyEditPage{
-			Page: "policies", Session: sd, Policy: p, Agents: agents, IsNew: false, Error: err.Error(),
+			Page: "policies", Session: sd, Policy: p,
+			Agents: srv.listAgentsForForm(r, sd.OrgID), IsNew: false, Error: err.Error(),
 		})
 		return
 	}
 	p.ID = id
 	if err := srv.store.UpdatePolicy(r.Context(), &p); err != nil {
-		agents, _ := srv.store.ListAgents(r.Context(), sd.OrgID)
 		srv.render(w, "policy_edit.html", policyEditPage{
-			Page: "policies", Session: sd, Policy: p, Agents: agents, IsNew: false,
+			Page: "policies", Session: sd, Policy: p,
+			Agents: srv.listAgentsForForm(r, sd.OrgID), IsNew: false,
 			Error: "Failed to update policy: " + err.Error(),
 		})
 		return
@@ -115,6 +123,13 @@ func (srv *Server) handlePolicyDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/policies", http.StatusSeeOther)
+}
+
+// listAgentsForForm returns the agent list for populating policy form dropdowns.
+// On error it returns nil (empty dropdown) since the caller already has a form error to display.
+func (srv *Server) listAgentsForForm(r *http.Request, orgID string) []admin.RegisteredAgent {
+	agents, _ := srv.store.ListAgents(r.Context(), orgID)
+	return agents
 }
 
 // policyFromForm parses and validates the policy form fields.

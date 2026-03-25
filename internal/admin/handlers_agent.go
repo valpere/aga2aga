@@ -33,7 +33,11 @@ type agentNewPage struct {
 
 func (srv *Server) handleAgentList(w http.ResponseWriter, r *http.Request) {
 	sd := sessionFromCtx(r)
-	all, _ := srv.store.ListAgents(r.Context(), sd.OrgID)
+	all, err := srv.store.ListAgents(r.Context(), sd.OrgID)
+	if err != nil {
+		http.Error(w, "failed to load agents", http.StatusInternalServerError)
+		return
+	}
 
 	filter := r.URL.Query().Get("status")
 	var agents []admin.RegisteredAgent
@@ -109,7 +113,11 @@ func (srv *Server) handleAgentDetail(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	all, _ := srv.store.ListPolicies(r.Context(), sd.OrgID)
+	all, err := srv.store.ListPolicies(r.Context(), sd.OrgID)
+	if err != nil {
+		http.Error(w, "failed to load policies", http.StatusInternalServerError)
+		return
+	}
 	var related []admin.CommunicationPolicy
 	for _, p := range all {
 		if p.SourceID == agentID || p.TargetID == agentID ||
