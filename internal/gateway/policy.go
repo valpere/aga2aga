@@ -90,7 +90,7 @@ func (e *HTTPEnforcer) Allowed(ctx context.Context, source, target string) (bool
 	if err != nil {
 		return false, fmt.Errorf("gateway/policy: http evaluate: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return false, fmt.Errorf("gateway/policy: evaluate returned status %d", resp.StatusCode)

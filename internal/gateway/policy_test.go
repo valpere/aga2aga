@@ -115,7 +115,7 @@ func TestHTTPEnforcer_Allowed(t *testing.T) {
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprint(w, `{"action":"allow"}`)
+				_, _ = fmt.Fprint(w, `{"action":"allow"}`)
 			},
 			wantAllow: true,
 		},
@@ -123,7 +123,7 @@ func TestHTTPEnforcer_Allowed(t *testing.T) {
 			name: "deny response",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprint(w, `{"action":"deny"}`)
+				_, _ = fmt.Fprint(w, `{"action":"deny"}`)
 			},
 			wantAllow: false,
 		},
