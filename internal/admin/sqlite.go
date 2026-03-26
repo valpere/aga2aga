@@ -360,6 +360,9 @@ func (s *SQLiteStore) CreateAPIKey(ctx context.Context, k *admin.APIKey) error {
 	return err
 }
 
+// GetAPIKeyByHash returns the key row regardless of revocation status.
+// SECURITY: callers MUST check RevokedAt.IsZero() before trusting the key.
+// The gateway auth path (handlers_api.go) performs this check; any new caller must too.
 func (s *SQLiteStore) GetAPIKeyByHash(ctx context.Context, hash string) (*admin.APIKey, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, org_id, name, key_hash, role, created_by, created_at, revoked_at

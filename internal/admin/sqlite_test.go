@@ -226,12 +226,22 @@ func TestSQLiteStore_APIKeyRoundTrip(t *testing.T) {
 		t.Errorf("key.RevokedAt should be zero (active)")
 	}
 
+	// Add a second key that will stay active throughout.
+	k2 := &admin.APIKey{
+		ID: "key-2", OrgID: "org-1", Name: "admin-key",
+		KeyHash: "def456hash", Role: admin.RoleViewer,
+		CreatedBy: "user-1", CreatedAt: time.Now().UTC(),
+	}
+	if err := s.CreateAPIKey(ctx, k2); err != nil {
+		t.Fatalf("CreateAPIKey k2: %v", err)
+	}
+
 	list, err := s.ListAPIKeys(ctx, "org-1")
 	if err != nil {
 		t.Fatalf("ListAPIKeys: %v", err)
 	}
-	if len(list) != 1 {
-		t.Errorf("len(keys) = %d, want 1", len(list))
+	if len(list) != 2 {
+		t.Errorf("len(keys) = %d, want 2", len(list))
 	}
 
 	// Cross-org revocation must be rejected.
@@ -242,18 +252,24 @@ func TestSQLiteStore_APIKeyRoundTrip(t *testing.T) {
 	if err := s.RevokeAPIKey(ctx, "org-1", "key-1"); err != nil {
 		t.Fatalf("RevokeAPIKey: %v", err)
 	}
-	got, _ = s.GetAPIKeyByHash(ctx, "abc123hash")
+	got, err = s.GetAPIKeyByHash(ctx, "abc123hash")
+	if err != nil {
+		t.Fatalf("GetAPIKeyByHash after revoke: %v", err)
+	}
 	if got.RevokedAt.IsZero() {
 		t.Errorf("after revoke, key.RevokedAt should be non-zero")
 	}
 
-	// Revoked keys must not appear in ListAPIKeys.
+	// Revoked key must not appear in ListAPIKeys; the active key must remain.
 	listAfterRevoke, err := s.ListAPIKeys(ctx, "org-1")
 	if err != nil {
 		t.Fatalf("ListAPIKeys after revoke: %v", err)
 	}
-	if len(listAfterRevoke) != 0 {
-		t.Errorf("ListAPIKeys after revoke: got %d keys, want 0 (revoked keys must be excluded)", len(listAfterRevoke))
+	if len(listAfterRevoke) != 1 {
+		t.Errorf("ListAPIKeys after revoke: got %d keys, want 1 (revoked keys must be excluded)", len(listAfterRevoke))
+	}
+	if len(listAfterRevoke) == 1 && listAfterRevoke[0].ID != "key-2" {
+		t.Errorf("surviving key ID = %q, want %q", listAfterRevoke[0].ID, "key-2")
 	}
 }
 
