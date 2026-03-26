@@ -16,6 +16,7 @@ metadata:
 ## OVERVIEW
 
 ```
+Pre-check: CI must be green before review rounds start (fix failures first)
 Round 1: (provider round_1 model) — full PR diff  → fix → push
 Round 2: (provider round_2 model) — delta diff    → fix → push
 Round 3: (provider round_3 model) — delta diff    → fix → push
@@ -50,6 +51,41 @@ Load the calling infrastructure and API keys:
 . .claude/skills/lib/rest.sh
 load_env_key OPENROUTER_API_KEY   # or OLLAMA_BASE_URL for ollama provider
 ```
+
+---
+
+## STEP 0.5: Pre-Check CI
+
+Before starting review rounds, ensure CI is green. Review models should not waste
+API calls on code that fails build, test, vet, or lint.
+
+```bash
+SHA=$(gh pr view {number} --repo valpere/aga2aga --json headRefOid --jq '.headRefOid')
+
+for i in $(seq 1 60); do
+  STATUS=$(gh api repos/valpere/aga2aga/commits/$SHA/check-runs --jq '
+    if .check_runs | length == 0 then "pending"
+    elif ([.check_runs[] | select(.conclusion == "failure" or .conclusion == "cancelled")] | length) > 0 then "failure"
+    elif ([.check_runs[] | select(.status != "completed")] | length) > 0 then "pending"
+    else "success"
+    end')
+  case "$STATUS" in
+    success) echo "CI passed — starting review rounds."; break ;;
+    failure) echo "CI FAILED — fix before reviewing."; break ;;
+    pending) echo "CI pending... ($((i * 5))s)"; sleep 5 ;;
+  esac
+done
+```
+
+If CI fails:
+1. Read the failing check output: `gh pr checks {number} --repo valpere/aga2aga`
+2. Fix the lint/test/build errors locally
+3. Run `go test ./... && go vet ./...` to confirm the fix
+4. Commit and push: `git add ... && git commit -m "fix(pr#{number}): fix CI errors before review" && git push`
+5. Re-poll CI with the new SHA (loop back to the poll above, updating SHA first)
+6. **Max 3 fix attempts.** After 3 failures, stop and surface to user — do not start review rounds.
+
+If CI is pending for >5 minutes: warn and stop. Do NOT start review rounds without green CI.
 
 ---
 
@@ -310,3 +346,4 @@ git checkout main && git pull
 9. **JSON parse failure** — retry once, skip reviewer on second failure
 10. **Provider switch is permanent** — `sed` into config.yaml immediately
 11. **Arbiter always runs** — even if all 3 model rounds stop early
+12. **CI must pass before review rounds** — never start Round 1 with failing checks; fix first, then review
