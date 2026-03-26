@@ -1,4 +1,4 @@
-// Package gateway contains the internal MCP Gateway implementation
-// that bridges external AI agents to the Redis Streams transport.
-// Implementation is deferred to Phase 2 (#13 CI pipeline first).
+// Package gateway implements the MCP Gateway that bridges external AI agents
+// (Claude Code, Codex CLI, Gemini CLI) to the Redis Streams transport via four
+// MCP tools: get_task, complete_task, fail_task, and heartbeat.
 package gateway

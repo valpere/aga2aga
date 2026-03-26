@@ -31,13 +31,12 @@ func New(t transport.Transport, e PolicyEnforcer, cfg Config) *Gateway {
 		enforcer: e,
 		cfg:      cfg,
 	}
-	g.RegisterTools()
+	g.registerTools()
 	return g
 }
 
-// RegisterTools adds the 4 MCP tools to the server. Called by New; do not
-// call again after New returns.
-func (g *Gateway) RegisterTools() {
+// registerTools adds the 4 MCP tools to the server. Called once by New.
+func (g *Gateway) registerTools() {
 	mcpsdk.AddTool(g.server,
 		&mcpsdk.Tool{Name: "get_task", Description: "Fetch the next task from the agent's task stream."},
 		g.handleGetTask,
