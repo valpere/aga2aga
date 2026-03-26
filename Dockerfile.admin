@@ -20,6 +20,10 @@ RUN apk add --no-cache wget
 
 COPY --from=builder /admin /admin
 
+# Create the data directory owned by nobody so the SQLite database can be
+# written when the container runs unprivileged (USER nobody below).
+RUN mkdir -p /data && chown nobody:nobody /data
+
 USER nobody
 ENTRYPOINT ["/admin"]
 CMD ["--addr=:8080", "--db=/data/admin.db"]
