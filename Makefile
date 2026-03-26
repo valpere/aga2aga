@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help build test lint validate docker tidy
+.PHONY: help build test test-integration lint validate docker docker-admin docker-images up down ps logs tidy
 
 ## help: print this help message
 help:
@@ -15,6 +15,10 @@ build:
 ## test: run all tests
 test:
 	go test ./...
+
+## test-integration: run integration tests (requires Docker)
+test-integration:
+	go test -tags integration -timeout 120s ./tests/integration/...
 
 ## lint: run go vet and golangci-lint
 lint:
@@ -34,9 +38,34 @@ validate:
 
 VERSION ?= $(shell git rev-parse --short HEAD)
 
-## docker: build the gateway container image (tagged with git SHA and :latest)
+COMPOSE := docker compose -f docker-compose.local.yml
+
+## docker: build the gateway image tagged with git SHA and latest
 docker:
-	docker build -t aga2aga:$(VERSION) -t aga2aga:latest .
+	docker build -f Dockerfile -t aga2aga-gateway:$(VERSION) -t aga2aga-gateway:latest .
+
+## docker-admin: build the admin image tagged with git SHA and latest
+docker-admin:
+	docker build -f Dockerfile.admin -t aga2aga-admin:$(VERSION) -t aga2aga-admin:latest .
+
+## docker-images: build both gateway and admin images
+docker-images: docker docker-admin
+
+## up: start all services (set ADMIN_API_KEY in .env or environment)
+up:
+	$(COMPOSE) up -d
+
+## down: stop all services
+down:
+	$(COMPOSE) down
+
+## ps: show service status
+ps:
+	$(COMPOSE) ps
+
+## logs: tail logs from all services
+logs:
+	$(COMPOSE) logs --tail=50 --follow
 
 ## tidy: sync go.mod and go.sum
 tidy:
