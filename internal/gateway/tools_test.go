@@ -13,19 +13,32 @@ import (
 
 // --- shared mocks ---------------------------------------------------------
 
-// mockTransport records Publish calls and can serve pre-loaded deliveries.
+// mockTransport records Publish calls, captures the published document, and
+// can serve pre-loaded deliveries. Error fields allow injection of specific
+// failures to test error-handling paths.
 type mockTransport struct {
+	// delivery channels keyed by topic
+	ch map[string]chan transport.Delivery
+	// injected errors
+	subscribeErr error
+	publishErr   error
+	ackErr       error
+	// recorded calls
 	publishTopic string
-	ch           map[string]chan transport.Delivery
+	publishDoc   *document.Document
 	acked        bool
 }
 
-func (m *mockTransport) Publish(_ context.Context, topic string, _ *document.Document) error {
+func (m *mockTransport) Publish(_ context.Context, topic string, doc *document.Document) error {
 	m.publishTopic = topic
-	return nil
+	m.publishDoc = doc
+	return m.publishErr
 }
 
 func (m *mockTransport) Subscribe(_ context.Context, topic string) (<-chan transport.Delivery, error) {
+	if m.subscribeErr != nil {
+		return nil, m.subscribeErr
+	}
 	if ch, ok := m.ch[topic]; ok {
 		return ch, nil
 	}
@@ -34,7 +47,7 @@ func (m *mockTransport) Subscribe(_ context.Context, topic string) (<-chan trans
 
 func (m *mockTransport) Ack(_ context.Context, _, _ string) error {
 	m.acked = true
-	return nil
+	return m.ackErr
 }
 
 func (m *mockTransport) Close() error { return nil }
@@ -95,18 +108,19 @@ func TestHandleGetTask(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		agent       string
-		delivery    *transport.Delivery
-		allowed     bool
-		enforcerErr error
-		wantErr     bool
-		wantTaskID  string
-		wantBody    string
-		wantStored  bool
+		name         string
+		agent        string
+		delivery     *transport.Delivery
+		allowed      bool
+		enforcerErr  error
+		subscribeErr error
+		wantErr      bool
+		wantTaskID   string
+		wantBody     string
+		wantStored   bool
 	}{
 		{
-			// taskID is now delivery.MsgID (transport-layer token), not Doc.ID
+			// taskID is delivery.MsgID (transport-layer token), not Doc.ID
 			name:       "task delivered and stored in pending",
 			agent:      "agent-a",
 			delivery:   &transport.Delivery{Doc: testDoc, MsgID: "redis-1-0"},
@@ -138,6 +152,13 @@ func TestHandleGetTask(t *testing.T) {
 			wantErr:     true,
 		},
 		{
+			name:         "subscribe error returns error",
+			agent:        "agent-a",
+			allowed:      true,
+			subscribeErr: errors.New("redis down"),
+			wantErr:      true,
+		},
+		{
 			name:       "no task available returns empty task_id",
 			agent:      "agent-a",
 			allowed:    true,
@@ -157,6 +178,7 @@ func TestHandleGetTask(t *testing.T) {
 				ch: map[string]chan transport.Delivery{
 					"agent.tasks.agent-a": ch,
 				},
+				subscribeErr: tc.subscribeErr,
 			}
 			enf := &mockEnforcer{allowed: tc.allowed, err: tc.enforcerErr}
 			g := newTestGateway(t, trans, enf)
@@ -189,18 +211,24 @@ func TestHandleGetTask(t *testing.T) {
 
 func TestHandleCompleteTask(t *testing.T) {
 	tests := []struct {
-		name        string
-		taskID      string
-		agent       string
-		result      string
-		prepPending bool
-		allowed     bool
-		wantErr     bool
-		wantAcked   bool
-		wantPublish string
+		name         string
+		taskID       string
+		agent        string
+		result       string
+		prepPending  bool
+		allowed      bool
+		enforcerErr  error
+		publishErr   error
+		ackErr       error
+		wantErr      bool
+		wantAcked    bool
+		wantPublish  string
+		wantDocType  string
+		wantDocFrom  string
+		wantDocTo    string
 	}{
 		{
-			name:        "success",
+			name:        "success — publishes task.result with correct envelope",
 			taskID:      "task-123",
 			agent:       "agent-a",
 			result:      "done",
@@ -208,12 +236,22 @@ func TestHandleCompleteTask(t *testing.T) {
 			allowed:     true,
 			wantAcked:   true,
 			wantPublish: "agent.events.completed",
+			wantDocType: "task.result",
+			wantDocFrom: "mcp-gateway",
+			wantDocTo:   "agent-a",
 		},
 		{
 			name:    "invalid agent id returns error",
 			taskID:  "task-123",
 			agent:   "",
 			wantErr: true,
+		},
+		{
+			name:        "enforcer error propagates",
+			taskID:      "task-123",
+			agent:       "agent-a",
+			enforcerErr: errors.New("store down"),
+			wantErr:     true,
 		},
 		{
 			name:    "policy denial returns error",
@@ -229,12 +267,39 @@ func TestHandleCompleteTask(t *testing.T) {
 			allowed: true,
 			wantErr: true,
 		},
+		{
+			// publish failure must prevent Ack
+			name:        "publish error — Ack not called",
+			taskID:      "task-123",
+			agent:       "agent-a",
+			prepPending: true,
+			allowed:     true,
+			publishErr:  errors.New("redis publish failed"),
+			wantErr:     true,
+			wantAcked:   false,
+		},
+		{
+			// Ack failure is still an error but publish already succeeded
+			name:        "ack error returns error",
+			taskID:      "task-123",
+			agent:       "agent-a",
+			prepPending: true,
+			allowed:     true,
+			ackErr:      errors.New("redis ack failed"),
+			wantErr:     true,
+			wantPublish: "agent.events.completed",
+			wantAcked:   true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			trans := &mockTransport{ch: map[string]chan transport.Delivery{}}
-			enf := &mockEnforcer{allowed: tc.allowed}
+			trans := &mockTransport{
+				ch:         map[string]chan transport.Delivery{},
+				publishErr: tc.publishErr,
+				ackErr:     tc.ackErr,
+			}
+			enf := &mockEnforcer{allowed: tc.allowed, err: tc.enforcerErr}
 			g := newTestGateway(t, trans, enf)
 
 			if tc.prepPending {
@@ -251,11 +316,22 @@ func TestHandleCompleteTask(t *testing.T) {
 				if out.Status != "ok" {
 					t.Errorf("status = %q; want ok", out.Status)
 				}
-				if trans.publishTopic != tc.wantPublish {
-					t.Errorf("publishTopic = %q; want %q", trans.publishTopic, tc.wantPublish)
+			}
+			if tc.wantPublish != "" && trans.publishTopic != tc.wantPublish {
+				t.Errorf("publishTopic = %q; want %q", trans.publishTopic, tc.wantPublish)
+			}
+			if trans.acked != tc.wantAcked {
+				t.Errorf("acked = %v; want %v", trans.acked, tc.wantAcked)
+			}
+			if tc.wantDocType != "" && trans.publishDoc != nil {
+				if string(trans.publishDoc.Type) != tc.wantDocType {
+					t.Errorf("doc.Type = %q; want %q", trans.publishDoc.Type, tc.wantDocType)
 				}
-				if trans.acked != tc.wantAcked {
-					t.Errorf("acked = %v; want %v", trans.acked, tc.wantAcked)
+				if trans.publishDoc.From != tc.wantDocFrom {
+					t.Errorf("doc.From = %q; want %q", trans.publishDoc.From, tc.wantDocFrom)
+				}
+				if len(trans.publishDoc.To) == 0 || string(trans.publishDoc.To[0]) != tc.wantDocTo {
+					t.Errorf("doc.To = %v; want [%q]", trans.publishDoc.To, tc.wantDocTo)
 				}
 			}
 		})
@@ -272,25 +348,41 @@ func TestHandleFailTask(t *testing.T) {
 		errMsg      string
 		prepPending bool
 		allowed     bool
+		enforcerErr error
+		publishErr  error
+		ackErr      error
 		wantErr     bool
-		wantPublish string
 		wantAcked   bool
+		wantPublish string
+		wantDocType string
+		wantDocFrom string
+		wantDocTo   string
 	}{
 		{
-			name:        "success",
+			name:        "success — publishes task.fail with correct envelope",
 			taskID:      "task-456",
 			agent:       "agent-a",
 			errMsg:      "timeout",
 			prepPending: true,
 			allowed:     true,
-			wantPublish: "agent.events.failed",
 			wantAcked:   true,
+			wantPublish: "agent.events.failed",
+			wantDocType: "task.fail",
+			wantDocFrom: "mcp-gateway",
+			wantDocTo:   "agent-a",
 		},
 		{
 			name:    "invalid agent id returns error",
 			taskID:  "task-456",
 			agent:   "",
 			wantErr: true,
+		},
+		{
+			name:        "enforcer error propagates",
+			taskID:      "task-456",
+			agent:       "agent-a",
+			enforcerErr: errors.New("store down"),
+			wantErr:     true,
 		},
 		{
 			name:    "policy denial returns error",
@@ -306,12 +398,39 @@ func TestHandleFailTask(t *testing.T) {
 			allowed: true,
 			wantErr: true,
 		},
+		{
+			// publish failure must prevent Ack
+			name:        "publish error — Ack not called",
+			taskID:      "task-456",
+			agent:       "agent-a",
+			prepPending: true,
+			allowed:     true,
+			publishErr:  errors.New("redis publish failed"),
+			wantErr:     true,
+			wantAcked:   false,
+		},
+		{
+			// Ack failure is still an error but publish already succeeded
+			name:        "ack error returns error",
+			taskID:      "task-456",
+			agent:       "agent-a",
+			prepPending: true,
+			allowed:     true,
+			ackErr:      errors.New("redis ack failed"),
+			wantErr:     true,
+			wantPublish: "agent.events.failed",
+			wantAcked:   true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			trans := &mockTransport{ch: map[string]chan transport.Delivery{}}
-			enf := &mockEnforcer{allowed: tc.allowed}
+			trans := &mockTransport{
+				ch:         map[string]chan transport.Delivery{},
+				publishErr: tc.publishErr,
+				ackErr:     tc.ackErr,
+			}
+			enf := &mockEnforcer{allowed: tc.allowed, err: tc.enforcerErr}
 			g := newTestGateway(t, trans, enf)
 
 			if tc.prepPending {
@@ -328,11 +447,22 @@ func TestHandleFailTask(t *testing.T) {
 				if out.Status != "ok" {
 					t.Errorf("status = %q; want ok", out.Status)
 				}
-				if trans.publishTopic != tc.wantPublish {
-					t.Errorf("publishTopic = %q; want %q", trans.publishTopic, tc.wantPublish)
+			}
+			if tc.wantPublish != "" && trans.publishTopic != tc.wantPublish {
+				t.Errorf("publishTopic = %q; want %q", trans.publishTopic, tc.wantPublish)
+			}
+			if trans.acked != tc.wantAcked {
+				t.Errorf("acked = %v; want %v", trans.acked, tc.wantAcked)
+			}
+			if tc.wantDocType != "" && trans.publishDoc != nil {
+				if string(trans.publishDoc.Type) != tc.wantDocType {
+					t.Errorf("doc.Type = %q; want %q", trans.publishDoc.Type, tc.wantDocType)
 				}
-				if trans.acked != tc.wantAcked {
-					t.Errorf("acked = %v; want %v", trans.acked, tc.wantAcked)
+				if trans.publishDoc.From != tc.wantDocFrom {
+					t.Errorf("doc.From = %q; want %q", trans.publishDoc.From, tc.wantDocFrom)
+				}
+				if len(trans.publishDoc.To) == 0 || string(trans.publishDoc.To[0]) != tc.wantDocTo {
+					t.Errorf("doc.To = %v; want [%q]", trans.publishDoc.To, tc.wantDocTo)
 				}
 			}
 		})
