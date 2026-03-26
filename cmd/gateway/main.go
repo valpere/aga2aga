@@ -8,14 +8,16 @@
 //
 // Flags:
 //
-//	--redis-addr      Redis address (default: localhost:6379)
-//	--mcp-transport   MCP transport: stdio or http (default: stdio)
-//	--addr            Listen address for HTTP transport (default: :3000)
-//	--policy-mode     Policy mode: embedded or remote (default: embedded)
-//	--admin-db        SQLite path for embedded policy mode (default: admin.db)
-//	--admin-url       Admin server URL for remote policy mode
-//	--admin-api-key   Bearer token for remote policy mode
-//	--pending-ttl     PendingMap entry TTL (default: 1h)
+//	--redis-addr         Redis address (default: localhost:6379)
+//	--mcp-transport      MCP transport: stdio or http (default: stdio)
+//	--addr               Listen address for HTTP transport (default: :3000)
+//	--policy-mode        Policy mode: embedded or remote (default: embedded)
+//	--admin-db           SQLite path for embedded policy mode (default: admin.db)
+//	--admin-url          Admin server URL for remote policy mode
+//	--admin-api-key      Bearer token for remote policy mode
+//	--pending-ttl        PendingMap entry TTL (default: 1h)
+//	--agent-id           Gateway identity used in policy checks (default: mcp-gateway)
+//	--task-read-timeout  Max wait for a task delivery in get_task (default: 5s)
 package main
 
 import (
@@ -37,23 +39,24 @@ import (
 )
 
 func main() {
-	redisAddr   := flag.String("redis-addr",   "localhost:6379", "Redis address")
-	mcpTransport := flag.String("mcp-transport", "stdio",         "MCP transport: stdio or http")
-	addr        := flag.String("addr",          ":3000",          "Listen address (HTTP transport only)")
-	policyMode  := flag.String("policy-mode",  "embedded",        "Policy mode: embedded or remote")
-	adminDB     := flag.String("admin-db",     "admin.db",        "SQLite path (embedded policy mode)")
-	adminURL    := flag.String("admin-url",    "",                "Admin server URL (remote policy mode)")
-	adminAPIKey := flag.String("admin-api-key", "",               "Bearer token (remote policy mode)")
-	pendingTTL  := flag.Duration("pending-ttl", time.Hour,        "PendingMap entry TTL")
+	redisAddr       := flag.String("redis-addr", "localhost:6379", "Redis address")
+	mcpTransport    := flag.String("mcp-transport", "stdio", "MCP transport: stdio or http")
+	addr            := flag.String("addr", ":3000", "Listen address (HTTP transport only)")
+	policyMode      := flag.String("policy-mode", "embedded", "Policy mode: embedded or remote")
+	adminDB         := flag.String("admin-db", "admin.db", "SQLite path (embedded policy mode)")
+	adminURL        := flag.String("admin-url", "", "Admin server URL (remote policy mode)")
+	adminAPIKey     := flag.String("admin-api-key", "", "Bearer token (remote policy mode)")
+	pendingTTL      := flag.Duration("pending-ttl", time.Hour, "PendingMap entry TTL")
+	agentID         := flag.String("agent-id", "mcp-gateway", "Gateway identity used in policy checks")
+	taskReadTimeout := flag.Duration("task-read-timeout", 5*time.Second, "Max wait for a task delivery in get_task")
 	flag.Parse()
 
-	// Redis client — caller owns Close.
+	// Redis Streams transport. Deferred close order: transport first (drains
+	// in-flight I/O), then the underlying Redis client.
 	rdb := goredis.NewClient(&goredis.Options{Addr: *redisAddr})
-	defer func() { _ = rdb.Close() }()
-
-	// Redis Streams transport.
 	trans := redistransport.New(rdb, redistransport.Options{})
 	defer func() { _ = trans.Close() }()
+	defer func() { _ = rdb.Close() }()
 
 	// Policy enforcer.
 	enf, closeEnf := mustEnforcer(*policyMode, *adminDB, *adminURL, *adminAPIKey)
@@ -63,6 +66,8 @@ func main() {
 
 	// Gateway configuration.
 	cfg := gateway.DefaultConfig()
+	cfg.AgentID = *agentID
+	cfg.TaskReadTimeout = *taskReadTimeout
 	cfg.PendingTTL = *pendingTTL
 
 	gw := gateway.New(trans, enf, cfg)
@@ -86,11 +91,15 @@ func main() {
 			nil,
 		)
 		httpSrv := &http.Server{
-			Addr:         *addr,
-			Handler:      handler,
-			ReadTimeout:  15 * time.Second,
-			WriteTimeout: 15 * time.Second,
-			IdleTimeout:  60 * time.Second,
+			Addr:        *addr,
+			Handler:     handler,
+			ReadTimeout: 15 * time.Second,
+			// WriteTimeout is intentionally 0: SSE streams used by the MCP
+			// streamable-HTTP transport are long-lived responses. A non-zero
+			// write deadline would terminate every MCP session after that
+			// duration. Per-write deadlines can be set via http.ResponseController
+			// inside the handler if needed in the future.
+			IdleTimeout: 60 * time.Second,
 		}
 		go func() {
 			log.Printf("aga2aga gateway listening on %s (HTTP transport)", *addr)
@@ -101,10 +110,10 @@ func main() {
 
 		<-ctx.Done()
 		shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer shutCancel()
 		if err := httpSrv.Shutdown(shutCtx); err != nil {
 			log.Printf("http shutdown error: %v", err)
 		}
+		shutCancel()
 
 	default:
 		log.Fatalf("unknown --mcp-transport %q (want stdio or http)", *mcpTransport)
@@ -144,4 +153,3 @@ func mustEnforcer(mode, adminDB, adminURL, adminAPIKey string) (gateway.PolicyEn
 func isContextErr(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
-
