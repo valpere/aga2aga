@@ -222,7 +222,7 @@ type receiveMessageOut struct {
 	Body string `json:"body"`
 }
 
-// --- tool handlers --------------------------------------------------------
+// --- send_message / receive_message handlers ------------------------------
 
 func (g *Gateway) handleSendMessage(ctx context.Context, _ *mcpsdk.CallToolRequest, in sendMessageIn) (*mcpsdk.CallToolResult, sendMessageOut, error) {
 	if !isValidAgentID(in.Agent) {
