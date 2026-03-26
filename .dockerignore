@@ -20,7 +20,6 @@ tests/
 schemas/
 docs/
 *.md
-!README.md
 
 # Build artifacts
 *.out

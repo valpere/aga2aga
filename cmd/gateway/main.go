@@ -62,6 +62,9 @@ func main() {
 		}
 		*adminAPIKey = envKey
 	}
+	if *policyMode == "remote" && *adminAPIKey == "" {
+		log.Fatal("ADMIN_API_KEY or --admin-api-key is required for --policy-mode=remote")
+	}
 
 	// Redis Streams transport. Defer rdb first so it runs last (LIFO); trans
 	// is deferred second so it runs first — draining in-flight I/O before

@@ -1,0 +1,108 @@
+# Local development environment: Redis + aga2aga admin + aga2aga gateway (HTTP transport).
+#
+# Quick start:
+#
+#   ADMIN_API_KEY=<key> docker-compose up
+#
+# ADMIN_API_KEY is required for the gateway (remote policy mode). Create one:
+#   1. Start admin only:   docker-compose up redis admin
+#   2. Log in at http://localhost:8080 (admin / changeme) — CHANGE THE PASSWORD.
+#   3. Create an API key under "API Keys".
+#   4. Restart with the key: ADMIN_API_KEY=<key> docker-compose up
+#
+# The MCP gateway is reachable at http://localhost:3000.
+# The admin UI is reachable at http://localhost:8080 (change default password).
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Bind to loopback only — Redis has no authentication configured here;
+    # exposing it on 0.0.0.0 would allow unauthenticated access from the network.
+    ports:
+      - "127.0.0.1:6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  admin:
+    image: aga2aga-admin
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    restart: unless-stopped
+    # Bind to loopback — admin UI uses default credentials on first run.
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - admin-data:/data
+    command:
+      - "--addr=:8080"
+      - "--db=/data/admin.db"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # wget is available in the alpine-based admin image.
+      # A 302 redirect to /login counts as healthy (server is up).
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  gateway:
+    image: aga2aga-gateway
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      # Empty default allows `docker compose config` to validate without the key set.
+      # The gateway binary enforces non-empty in remote policy mode at startup.
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-}
+    command:
+      - "--mcp-transport=http"
+      - "--addr=:3000"
+      - "--redis-addr=redis:6379"
+      - "--policy-mode=remote"
+      - "--admin-url=http://admin:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+    # Gateway is stateless — enforce a read-only filesystem as documented in the Dockerfile.
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  # admin-data persists the SQLite database across container restarts.
+  # Back up this volume before upgrading the admin image in production.
+  admin-data:
