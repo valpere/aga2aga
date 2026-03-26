@@ -234,7 +234,12 @@ func TestSQLiteStore_APIKeyRoundTrip(t *testing.T) {
 		t.Errorf("len(keys) = %d, want 1", len(list))
 	}
 
-	if err := s.RevokeAPIKey(ctx, "key-1"); err != nil {
+	// Cross-org revocation must be rejected.
+	if err := s.RevokeAPIKey(ctx, "org-other", "key-1"); err == nil {
+		t.Error("RevokeAPIKey with wrong orgID: expected error, got nil")
+	}
+
+	if err := s.RevokeAPIKey(ctx, "org-1", "key-1"); err != nil {
 		t.Fatalf("RevokeAPIKey: %v", err)
 	}
 	got, _ = s.GetAPIKeyByHash(ctx, "abc123hash")

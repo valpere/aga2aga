@@ -367,6 +367,9 @@ func (s *SQLiteStore) GetAPIKeyByHash(ctx context.Context, hash string) (*admin.
 	return scanAPIKey(row)
 }
 
+// ListAPIKeys returns all active (non-revoked) API keys for the given org.
+// Revoked keys (revoked_at != '') are intentionally excluded.
+// Use GetAPIKeyByHash to look up any key regardless of revocation status.
 func (s *SQLiteStore) ListAPIKeys(ctx context.Context, orgID string) ([]admin.APIKey, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, org_id, name, key_hash, role, created_by, created_at, revoked_at
@@ -394,12 +397,22 @@ func (s *SQLiteStore) ListAPIKeys(ctx context.Context, orgID string) ([]admin.AP
 	return keys, rows.Err()
 }
 
-func (s *SQLiteStore) RevokeAPIKey(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE api_keys SET revoked_at=? WHERE id=?`,
-		time.Now().UTC().Format(time.RFC3339), id,
+func (s *SQLiteStore) RevokeAPIKey(ctx context.Context, orgID, id string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE api_keys SET revoked_at=? WHERE id=? AND org_id=?`,
+		time.Now().UTC().Format(time.RFC3339), id, orgID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("api key %q not found in org %q", id, orgID)
+	}
+	return nil
 }
 
 func scanAPIKey(row *sql.Row) (*admin.APIKey, error) {

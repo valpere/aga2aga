@@ -77,7 +77,7 @@ func (srv *Server) handleAPIKeyNewPost(w http.ResponseWriter, r *http.Request) {
 func (srv *Server) handleAPIKeyRevoke(w http.ResponseWriter, r *http.Request) {
 	sd := sessionFromCtx(r)
 	id := r.PathValue("id")
-	if err := srv.store.RevokeAPIKey(r.Context(), id); err != nil {
+	if err := srv.store.RevokeAPIKey(r.Context(), sd.OrgID, id); err != nil {
 		http.Error(w, "revoke failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
