@@ -135,6 +135,21 @@ docs/             All project documentation
 - Builder: `NewBuilder` + fluent setters (`ID`, `From`, `To`, `ExecID`, `TTL`, `Status`, `InReplyTo`, `ThreadID`, `Body`, `Field`); `Build()` runs full validation; sticky-error guard rejects reserved envelope keys in `Field()`
   - Convenience: `NewGenomeBuilder`, `NewSpawnProposalBuilder`, `NewTaskRequestBuilder`
 
+#### Implemented: pkg/transport/redis (#89)
+
+- `RedisTransport` — `Publish`, `Subscribe`, `Ack`, `Close`; context on all I/O; wraps go-redis v9
+- `PendingMap` — taskID → msgID mapping with configurable TTL-based cleanup goroutine; concurrent-safe
+
+#### Implemented: internal/gateway/policy (#90)
+
+- `PolicyEnforcer` interface — `Allowed(ctx, source, target string) (bool, error)`
+- `EmbeddedEnforcer` — in-process via `admin.PolicyStore.ListPolicies` + `admin.Evaluate`; default deny
+- `HTTPEnforcer` — remote `GET /api/v1/evaluate?source=X&target=Y` with Bearer token
+  - `NewHTTPEnforcer(baseURL, token string) (*HTTPEnforcer, error)` — validates scheme (http/https) + non-empty host (CWE-918)
+  - `io.LimitReader(4KiB)` on response body before JSON decode (CWE-400)
+  - Bearer token never in error messages (CWE-532)
+  - `url.QueryEscape` on source/target params
+
 #### Implemented: pkg/transport, pkg/identity, pkg/negotiation (stubs)
 
 - `pkg/transport` — `Transport` interface: `Publish`, `Subscribe`, `Ack` (with pending-map source contract), `Close`; context on all I/O methods; no external imports
