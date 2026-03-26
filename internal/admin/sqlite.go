@@ -400,6 +400,9 @@ func (s *SQLiteStore) ListAPIKeys(ctx context.Context, orgID string) ([]admin.AP
 	return keys, rows.Err()
 }
 
+// RevokeAPIKey marks the key as revoked. orgID is required so that a caller
+// cannot revoke keys belonging to a different organization (CWE-639).
+// Returns an error if no matching active key is found for the (id, orgID) pair.
 func (s *SQLiteStore) RevokeAPIKey(ctx context.Context, orgID, id string) error {
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE api_keys SET revoked_at=? WHERE id=? AND org_id=?`,
