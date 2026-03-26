@@ -80,8 +80,14 @@ func (srv *Server) handleProfilePost(w http.ResponseWriter, r *http.Request) {
 		srv.render(w, "profile.html", profilePage{Page: "profile", Session: sd, Error: msg})
 	}
 
-	if newPw == "" {
-		renderErr("New password must not be empty.")
+	const minPasswordLen = 8
+	const maxPasswordLen = 72 // bcrypt silently truncates beyond 72 bytes
+	if len(newPw) < minPasswordLen {
+		renderErr("Password must be at least 8 characters.")
+		return
+	}
+	if len(newPw) > maxPasswordLen {
+		renderErr("Password must not exceed 72 characters.")
 		return
 	}
 	if newPw != confirm {
