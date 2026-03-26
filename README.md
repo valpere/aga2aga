@@ -175,6 +175,48 @@ schemas/          Standalone JSON Schema 2020-12 reference copy
 docs/             Extended documentation
 ```
 
+## Makefile reference
+
+All common operations have `make` targets. Run `make help` to list them.
+
+### Development workflow (in order)
+
+| Step | Command | What it does |
+|------|---------|-------------|
+| 1 | `make tidy` | Sync `go.mod` / `go.sum` |
+| 2 | `make build` | Compile all packages |
+| 3 | `make test` | Run unit tests |
+| 4 | `make lint` | `go vet` + `golangci-lint` |
+| 5 | `make validate` | Validate test fixtures with the CLI |
+
+### Docker image build (in order)
+
+| Step | Command | What it does |
+|------|---------|-------------|
+| 1 | `make docker-images` | Build both `aga2aga-gateway` and `aga2aga-admin` images |
+| — | `make docker` | Build `aga2aga-gateway` only |
+| — | `make docker-admin` | Build `aga2aga-admin` only |
+
+Images are tagged with the current git SHA and `:latest`.
+
+### Service lifecycle
+
+| Command | What it does |
+|---------|-------------|
+| `make up` | Start all services (`docker-compose.local.yml`) |
+| `make down` | Stop all services |
+| `make ps` | Show service status and ports |
+| `make logs` | Tail + follow logs from all services |
+
+`ADMIN_API_KEY` must be set when starting the gateway (see [docs/RUNNING.md](docs/RUNNING.md)).
+
+### Testing
+
+| Command | What it does |
+|---------|-------------|
+| `make test` | Unit tests — no external deps |
+| `make test-integration` | Integration tests against a real Redis (requires Docker) |
+
 ## Documentation
 
 - [docs/RUNNING.md](docs/RUNNING.md) — how to build images, start services, connect an agent, and troubleshoot
