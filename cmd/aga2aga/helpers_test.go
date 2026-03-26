@@ -30,11 +30,11 @@ func TestReadAndParseFile(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		path        func(t *testing.T) string
-		wantType    string
-		wantErr     error
-		wantNonNil  bool
+		name       string
+		path       func(t *testing.T) string
+		wantType   string
+		wantErr    error
+		wantNonNil bool
 	}{
 		{
 			name:       "valid genome document",

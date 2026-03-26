@@ -23,8 +23,9 @@ type pendingEntry struct {
 // msgID values MUST come from the transport layer (Delivery.MsgID).
 // They must never be derived from document content or Document.Extra.
 type PendingMap struct {
-	mu      sync.RWMutex
-	entries map[string]pendingEntry
+	mu          sync.RWMutex
+	entries     map[string]pendingEntry
+	cleanupOnce sync.Once
 }
 
 // NewPendingMap constructs an empty PendingMap.
@@ -81,20 +82,23 @@ func (pm *PendingMap) LoadAndDelete(taskID string) (topic, msgID string, ok bool
 // StartCleanup starts a background goroutine that sweeps entries older than ttl
 // every ttl/2. Effective maximum entry lifetime is therefore [ttl, 1.5*ttl).
 // ttl must be positive. It stops when ctx is cancelled.
+// Idempotent: subsequent calls are no-ops.
 func (pm *PendingMap) StartCleanup(ctx context.Context, ttl time.Duration) {
-	sweep := ttl / 2
-	go func() {
-		ticker := time.NewTicker(sweep)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				pm.evict(ttl)
+	pm.cleanupOnce.Do(func() {
+		sweep := ttl / 2
+		go func() {
+			ticker := time.NewTicker(sweep)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					pm.evict(ttl)
+				}
 			}
-		}
-	}()
+		}()
+	})
 }
 
 func (pm *PendingMap) evict(ttl time.Duration) {

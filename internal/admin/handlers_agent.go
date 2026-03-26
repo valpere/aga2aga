@@ -96,7 +96,7 @@ func (srv *Server) handleAgentNewPost(w http.ResponseWriter, r *http.Request) {
 	if err := srv.store.RegisterAgent(r.Context(), a); err != nil {
 		srv.render(w, "agent_new.html", agentNewPage{
 			Page: "agents", Session: sd,
-			Error: "Failed to register agent: " + err.Error(),
+			Error:   "Failed to register agent: " + err.Error(),
 			AgentID: agentID, DisplayName: displayName,
 		})
 		return

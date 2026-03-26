@@ -63,8 +63,8 @@ type EscalationRule struct {
 // type registry before routing. DelegatesTo agent IDs MUST be validated in the authoritative
 // state-store before any delegation decision — never trust the wire values (CWE-20, CWE-601).
 type RoutingPolicy struct {
-	Accepts         []string         `yaml:"accepts"`                   // self-reported; MUST validate against protocol registry before routing
-	DelegatesTo     []string         `yaml:"delegates_to,omitempty"`    // self-reported agent IDs — MUST validate in registry before delegation
+	Accepts     []string `yaml:"accepts"`                // self-reported; MUST validate against protocol registry before routing
+	DelegatesTo []string `yaml:"delegates_to,omitempty"` // self-reported agent IDs — MUST validate in registry before delegation
 	// SECURITY: each EscalationRule.Condition and Target is attacker-controlled — see EscalationRule annotation (issue #38).
 	EscalationRules []EscalationRule `yaml:"escalation_rules,omitempty"`
 }
@@ -146,7 +146,7 @@ type GenomePatch struct {
 	Tools        *Tools        `yaml:"tools,omitempty"`
 	ModelPolicy  *ModelPolicy  `yaml:"model_policy,omitempty"`
 	// SECURITY: PromptPolicy.Style is attacker-controlled — see PromptPolicy.Style annotation (issue #35).
-	PromptPolicy  *PromptPolicy  `yaml:"prompt_policy,omitempty"`
+	PromptPolicy *PromptPolicy `yaml:"prompt_policy,omitempty"`
 	// SECURITY: RoutingPolicy fields (Accepts, DelegatesTo, EscalationRules) are attacker-controlled — see RoutingPolicy and EscalationRule annotations (issue #38).
 	RoutingPolicy *RoutingPolicy `yaml:"routing_policy,omitempty"`
 	MemoryPolicy  *MemoryPolicy  `yaml:"memory_policy,omitempty"`

@@ -73,6 +73,30 @@ func TestGateway_RegisterTools(t *testing.T) {
 	}
 }
 
+func TestGateway_Server_NotNil(t *testing.T) {
+	g := gateway.New(noopTransport{}, noopEnforcer{}, gateway.DefaultConfig())
+	if g.Server() == nil {
+		t.Error("Server() returned nil; want non-nil MCP server")
+	}
+}
+
+func TestGateway_StartCleanup_DoesNotBlock(t *testing.T) {
+	g := gateway.New(noopTransport{}, noopEnforcer{}, gateway.DefaultConfig())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		g.StartCleanup(ctx)
+		close(done)
+	}()
+	select {
+	case <-done:
+		// StartCleanup returned immediately — good (it starts a goroutine internally)
+	case <-time.After(500 * time.Millisecond):
+		t.Error("StartCleanup did not return promptly")
+	}
+}
+
 func TestGateway_Run_ExitsOnContextCancel(t *testing.T) {
 	g := gateway.New(noopTransport{}, noopEnforcer{}, gateway.DefaultConfig())
 

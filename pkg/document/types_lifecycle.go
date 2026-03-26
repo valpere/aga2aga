@@ -10,8 +10,8 @@ package document
 // Reason is an opaque logging label; MUST NOT influence transition logic.
 type Promotion struct {
 	TargetAgent string         `yaml:"target_agent"`
-	FromStatus  LifecycleState `yaml:"from_status"` // self-reported; use only for logging — validate via document.ValidTransition()
-	ToStatus    LifecycleState `yaml:"to_status"`   // self-reported; use only for logging — validate via document.ValidTransition()
+	FromStatus  LifecycleState `yaml:"from_status"`      // self-reported; use only for logging — validate via document.ValidTransition()
+	ToStatus    LifecycleState `yaml:"to_status"`        // self-reported; use only for logging — validate via document.ValidTransition()
 	Reason      string         `yaml:"reason,omitempty"` // opaque logging label — MUST NOT influence transition logic
 }
 
@@ -25,8 +25,8 @@ type Promotion struct {
 // Reason is an opaque logging label; MUST NOT influence transition logic.
 type Rollback struct {
 	TargetAgent string         `yaml:"target_agent"`
-	FromStatus  LifecycleState `yaml:"from_status"` // self-reported; use only for logging — validate via document.ValidTransition()
-	ToStatus    LifecycleState `yaml:"to_status"`   // self-reported; use only for logging — validate via document.ValidTransition()
+	FromStatus  LifecycleState `yaml:"from_status"`      // self-reported; use only for logging — validate via document.ValidTransition()
+	ToStatus    LifecycleState `yaml:"to_status"`        // self-reported; use only for logging — validate via document.ValidTransition()
 	Reason      string         `yaml:"reason,omitempty"` // opaque logging label — MUST NOT influence transition logic
 }
 
@@ -42,8 +42,8 @@ type Rollback struct {
 // Reason is an opaque logging label; MUST NOT influence transition logic.
 type Quarantine struct {
 	TargetAgent           string         `yaml:"target_agent"`
-	Reason                string         `yaml:"reason"`                          // opaque logging label — MUST NOT influence transition logic
-	FromStatus            LifecycleState `yaml:"from_status,omitempty"`           // self-reported; use only for logging — validate via document.ValidTransition()
+	Reason                string         `yaml:"reason"`                // opaque logging label — MUST NOT influence transition logic
+	FromStatus            LifecycleState `yaml:"from_status,omitempty"` // self-reported; use only for logging — validate via document.ValidTransition()
 	InvestigationRequired bool           `yaml:"investigation_required,omitempty"`
 }
 
@@ -63,10 +63,10 @@ type Quarantine struct {
 // any auto-promotion or auto-spawn decision.
 type Retirement struct {
 	TargetAgent    string         `yaml:"target_agent"`
-	Reason         string         `yaml:"reason"`                          // opaque logging label — MUST NOT influence transition logic
-	FromStatus     LifecycleState `yaml:"from_status,omitempty"`           // self-reported; use only for logging — validate via document.ValidTransition()
-	RetirementMode string         `yaml:"retirement_mode,omitempty"`       // self-reported hint — MUST NOT gate control flow without validation
-	ReplaceWith    []string       `yaml:"replace_with,omitempty"`          // self-reported IDs — MUST verify each in state-store before auto-promotion
+	Reason         string         `yaml:"reason"`                    // opaque logging label — MUST NOT influence transition logic
+	FromStatus     LifecycleState `yaml:"from_status,omitempty"`     // self-reported; use only for logging — validate via document.ValidTransition()
+	RetirementMode string         `yaml:"retirement_mode,omitempty"` // self-reported hint — MUST NOT gate control flow without validation
+	ReplaceWith    []string       `yaml:"replace_with,omitempty"`    // self-reported IDs — MUST verify each in state-store before auto-promotion
 }
 
 // RecombineProposal requests creation of a new agent from two or more parents.
