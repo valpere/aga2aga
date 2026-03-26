@@ -10,9 +10,54 @@ How to build images, start services, and connect an agent to the gateway.
 |------|---------|---------|
 | Docker Engine | 24+ | Container runtime |
 | Docker Compose | v2 (plugin, not standalone) | Service orchestration |
+| GNU Make | any | Shorthand for all build + compose commands |
 | `redis-cli` | any | Quick connectivity check (optional) |
 
 No Go toolchain is needed to run from images. Go 1.25+ is needed only to build from source (see [Building from source](#building-from-source)).
+
+---
+
+## Makefile reference
+
+All common operations have `make` targets. Run `make help` to list them.
+
+### Development workflow (in order)
+
+| Step | Command | What it does |
+|------|---------|-------------|
+| 1 | `make tidy` | Sync `go.mod` / `go.sum` |
+| 2 | `make build` | Compile all packages |
+| 3 | `make test` | Run unit tests |
+| 4 | `make lint` | `go vet` + `golangci-lint` |
+| 5 | `make validate` | Validate test fixtures with the CLI |
+
+### Docker image build (in order)
+
+| Step | Command | What it does |
+|------|---------|-------------|
+| 1 | `make docker-images` | Build both `aga2aga-gateway` and `aga2aga-admin` images |
+| — | `make docker` | Build `aga2aga-gateway` only |
+| — | `make docker-admin` | Build `aga2aga-admin` only |
+
+Images are tagged with the current git SHA and `:latest`.
+
+### Service lifecycle
+
+| Command | What it does |
+|---------|-------------|
+| `make up` | Start all services (`docker-compose.local.yml`) |
+| `make down` | Stop all services |
+| `make ps` | Show service status and ports |
+| `make logs` | Tail + follow logs from all services |
+
+`ADMIN_API_KEY` must be set when starting the gateway (see Step 4 below).
+
+### Testing
+
+| Command | What it does |
+|---------|-------------|
+| `make test` | Unit tests — no external deps |
+| `make test-integration` | Integration tests against a real Redis (requires Docker) |
 
 ---
 
@@ -27,9 +72,7 @@ All services run as unprivileged containers bound to `127.0.0.1` only.
 ### Step 1 — Build images
 
 ```bash
-# Both images must be built before first launch.
-docker build -f Dockerfile       -t aga2aga-gateway .
-docker build -f Dockerfile.admin -t aga2aga-admin   .
+make docker-images
 ```
 
 This requires internet access on the first run (pulls `golang:1.25-bookworm`, `gcr.io/distroless/static:nonroot`, and `alpine:3`). Subsequent builds use the layer cache and are fast.
@@ -43,7 +86,7 @@ docker compose -f docker-compose.local.yml up -d redis admin
 Wait ~5 seconds for the Admin healthcheck to pass:
 
 ```bash
-docker compose -f docker-compose.local.yml ps
+make ps
 # admin should show "(healthy)"
 ```
 
@@ -69,14 +112,19 @@ Then:
 ### Step 4 — Start the Gateway
 
 ```bash
-ADMIN_API_KEY=<paste-key-here> \
-  docker compose -f docker-compose.local.yml up -d gateway
+ADMIN_API_KEY=<paste-key-here> make up
+```
+
+Or, with a `.env` file containing `ADMIN_API_KEY` (see [Port configuration](#port-configuration)):
+
+```bash
+make up
 ```
 
 ### Step 5 — Verify everything is running
 
 ```bash
-docker compose -f docker-compose.local.yml ps
+make ps
 ```
 
 Expected output:
@@ -107,10 +155,10 @@ curl -s -o /dev/null -w '%{http_code}' \
 
 ```bash
 # Stop all services (data is preserved in the admin-data volume)
-docker compose -f docker-compose.local.yml down
+make down
 
 # Restart — supply the same API key
-ADMIN_API_KEY=<key> docker compose -f docker-compose.local.yml up -d
+ADMIN_API_KEY=<key> make up
 ```
 
 **The Admin session cookie is invalidated on each restart** (session keys are regenerated). Log in again at http://localhost:8087 after a restart.
@@ -143,7 +191,7 @@ GATEWAY_PORT=3001
 With a `.env` file, start with:
 
 ```bash
-docker compose -f docker-compose.local.yml up -d
+make up
 ```
 
 ---
@@ -191,18 +239,12 @@ Without a matching policy, `get_task` returns a policy-denied error.
 ## Building from source
 
 ```bash
-# Compile all binaries
-go build ./...
-
-# Run tests
-go test ./...
-
-# Run integration tests (requires Docker)
-go test -tags integration -timeout 120s ./tests/integration/...
-
-# Build both Docker images
-docker build -f Dockerfile       -t aga2aga-gateway .
-docker build -f Dockerfile.admin -t aga2aga-admin   .
+make tidy          # sync go.mod / go.sum
+make build         # compile all packages
+make test          # run unit tests
+make lint          # go vet + golangci-lint
+make test-integration  # integration tests (requires Docker)
+make docker-images # build gateway + admin container images
 ```
 
 ---
@@ -226,7 +268,7 @@ ADMIN_PORT=8090 docker compose -f docker-compose.local.yml up -d admin
 Rebuild the admin image — you may have an older build:
 
 ```bash
-docker build -f Dockerfile.admin -t aga2aga-admin .
+make docker-admin
 docker compose -f docker-compose.local.yml up -d --force-recreate admin
 ```
 
@@ -235,7 +277,7 @@ docker compose -f docker-compose.local.yml up -d --force-recreate admin
 The `admin-data` Docker volume was created with incorrect ownership (root instead of `nobody`). Delete the volume and recreate — **this wipes all admin data including API keys**:
 
 ```bash
-docker compose -f docker-compose.local.yml down
+make down
 docker volume rm aga2aga_admin-data
 docker compose -f docker-compose.local.yml up -d redis admin
 ```
