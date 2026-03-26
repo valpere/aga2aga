@@ -106,13 +106,24 @@ func TestHandleGetTask(t *testing.T) {
 		wantStored  bool
 	}{
 		{
+			// taskID is now delivery.MsgID (transport-layer token), not Doc.ID
 			name:       "task delivered and stored in pending",
 			agent:      "agent-a",
 			delivery:   &transport.Delivery{Doc: testDoc, MsgID: "redis-1-0"},
 			allowed:    true,
-			wantTaskID: "task-123",
+			wantTaskID: "redis-1-0",
 			wantBody:   testDoc.Body,
 			wantStored: true,
+		},
+		{
+			name:    "invalid agent id returns error",
+			agent:   "",
+			wantErr: true,
+		},
+		{
+			name:    "agent id with newline rejected",
+			agent:   "agent\nnewline",
+			wantErr: true,
 		},
 		{
 			name:    "policy denial returns error",
@@ -199,6 +210,12 @@ func TestHandleCompleteTask(t *testing.T) {
 			wantPublish: "agent.events.completed",
 		},
 		{
+			name:    "invalid agent id returns error",
+			taskID:  "task-123",
+			agent:   "",
+			wantErr: true,
+		},
+		{
 			name:    "policy denial returns error",
 			taskID:  "task-123",
 			agent:   "agent-a",
@@ -268,6 +285,12 @@ func TestHandleFailTask(t *testing.T) {
 			allowed:     true,
 			wantPublish: "agent.events.failed",
 			wantAcked:   true,
+		},
+		{
+			name:    "invalid agent id returns error",
+			taskID:  "task-456",
+			agent:   "",
+			wantErr: true,
 		},
 		{
 			name:    "policy denial returns error",

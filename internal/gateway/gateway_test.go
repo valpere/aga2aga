@@ -22,7 +22,7 @@ func (noopTransport) Subscribe(_ context.Context, _ string) (<-chan transport.De
 	return make(chan transport.Delivery), nil
 }
 func (noopTransport) Ack(_ context.Context, _, _ string) error { return nil }
-func (noopTransport) Close() error                              { return nil }
+func (noopTransport) Close() error                             { return nil }
 
 // noopEnforcer always allows.
 type noopEnforcer struct{}
