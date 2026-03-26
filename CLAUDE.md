@@ -46,12 +46,14 @@ Transport is pluggable: Redis → Gossip P2P → fully offline. Each layer is op
 
 ### MCP Tools Exposed
 
-| Tool            | Redis operation                             |
-| --------------- | ------------------------------------------- |
-| `get_task`      | `XREADGROUP` from `agent.tasks.<agent>`     |
-| `complete_task` | `XADD` to `agent.events.completed` + `XACK` |
-| `fail_task`     | `XADD` to `agent.events.failed`             |
-| `heartbeat`     | health check only                           |
+| Tool              | Redis operation                                       |
+| ----------------- | ----------------------------------------------------- |
+| `get_task`        | `XREADGROUP` from `agent.tasks.<agent>`               |
+| `complete_task`   | `XADD` to `agent.events.completed` + `XACK`           |
+| `fail_task`       | `XADD` to `agent.events.failed`                       |
+| `heartbeat`       | health check only                                     |
+| `send_message`    | `XADD` to `agent.messages.<recipient>`                |
+| `receive_message` | `XREADGROUP` from `agent.messages.<agent>` + `XACK`   |
 
 ### Skills Document Protocol
 
@@ -151,13 +153,15 @@ docs/             All project documentation
   - `url.QueryEscape` on source/target params
 - `Config` struct + `DefaultConfig()` — `AgentID`, `TaskReadTimeout` (5s), `PendingTTL` (5m)
 - `Gateway` struct — wires MCP server, Transport, PendingMap, PolicyEnforcer
-- `New(t, e, cfg)` — creates Gateway with 4 MCP tools registered
+- `New(t, e, cfg)` — creates Gateway with 6 MCP tools registered
 - `Run(ctx, mcpTransport)` — starts PendingMap cleanup, serves MCP over given transport
-- 4 tool handlers:
+- 6 tool handlers:
   - `get_task`: validates agent ID → policy check → subscribe → wait with timeout → store in PendingMap → return
   - `complete_task`: validates → policy → body size cap → LoadAndDelete → build task.result → Publish → Ack
   - `fail_task`: same pattern, publishes to `agent.events.failed`
   - `heartbeat`: no-op, returns `{status: "ok"}`
+  - `send_message`: validates sender + recipient IDs → policy(sender→recipient) → body size cap → build agent.message → Publish to `agent.messages.<recipient>`
+  - `receive_message`: validates → policy(agent→orchestrator) → subscribe `agent.messages.<agent>` → wait with timeout → Ack immediately → return `{from, body}`
 - Security: agent ID regex `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]$` (CWE-20/CWE-74); `taskID = delivery.MsgID` (transport-layer ID, not attacker-controlled `Doc.ID`); body capped at `MaxDocumentBytes` (CWE-400); `SECURITY(Phase 3):` comments at all `Allowed()` call sites (self-reported agent ID, CWE-287)
 - `cmd/gateway/main.go` (#92): 10 CLI flags; ADMIN_API_KEY env var preferred over flag (CWE-214); LIFO defer — `rdb` deferred first (runs last), `trans` deferred second (runs first); stdio + HTTP transports; `WriteTimeout:0` on http.Server for SSE long-lived streams; graceful shutdown with 10s context; `mustEnforcer` with `filepath.EvalSymlinks` on `--admin-db` (CWE-22/61)
 - `PendingMap.StartCleanup` idempotent via `sync.Once` — safe to call from both `Gateway.Run()` (stdio) and `Gateway.StartCleanup()` (HTTP path) without spawning duplicate goroutines

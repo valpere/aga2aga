@@ -55,7 +55,7 @@ func TestGateway_RegisterTools(t *testing.T) {
 		names = append(names, tool.Name)
 	}
 
-	want := []string{"complete_task", "fail_task", "get_task", "heartbeat"}
+	want := []string{"complete_task", "fail_task", "get_task", "heartbeat", "receive_message", "send_message"}
 	if len(names) != len(want) {
 		t.Errorf("registered %d tools; want %d: got %v", len(names), len(want), names)
 	}
