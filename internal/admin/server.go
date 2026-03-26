@@ -101,7 +101,18 @@ func (srv *Server) Handler() http.Handler {
 // parsed together with ParseFS("templates/*.html").
 func (srv *Server) render(w http.ResponseWriter, name string, data interface{}) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl, err := template.New("layout.html").Funcs(srv.funcMap).ParseFS(assets, "templates/layout.html", "templates/"+name)
+
+	// login.html is a self-contained page with no layout wrapper.
+	// All other pages define {{define "content"}} and are rendered inside layout.html.
+	var (
+		tmpl *template.Template
+		err  error
+	)
+	if name == "login.html" {
+		tmpl, err = template.New(name).Funcs(srv.funcMap).ParseFS(assets, "templates/"+name)
+	} else {
+		tmpl, err = template.New("layout.html").Funcs(srv.funcMap).ParseFS(assets, "templates/layout.html", "templates/"+name)
+	}
 	if err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
 		return
