@@ -177,6 +177,7 @@ docs/             Extended documentation
 
 ## Documentation
 
+- [docs/RUNNING.md](docs/RUNNING.md) — how to build images, start services, connect an agent, and troubleshoot
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed architecture: data flow, package dependency graph, API surface, security model
 - [docs/API.md](docs/API.md) — full API reference: all exported types, functions, and CLI flags with examples
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — TDD workflow, commit conventions, PR process, DO_NOT_TOUCH rules
