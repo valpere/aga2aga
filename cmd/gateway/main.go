@@ -26,7 +26,9 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -45,11 +47,21 @@ func main() {
 	policyMode      := flag.String("policy-mode", "embedded", "Policy mode: embedded or remote")
 	adminDB         := flag.String("admin-db", "admin.db", "SQLite path (embedded policy mode)")
 	adminURL        := flag.String("admin-url", "", "Admin server URL (remote policy mode)")
-	adminAPIKey     := flag.String("admin-api-key", "", "Bearer token (remote policy mode)")
+	adminAPIKey     := flag.String("admin-api-key", "", "Bearer token for remote policy mode (prefer ADMIN_API_KEY env var)")
 	pendingTTL      := flag.Duration("pending-ttl", time.Hour, "PendingMap entry TTL")
 	agentID         := flag.String("agent-id", "mcp-gateway", "Gateway identity used in policy checks")
 	taskReadTimeout := flag.Duration("task-read-timeout", 5*time.Second, "Max wait for a task delivery in get_task")
 	flag.Parse()
+
+	// SECURITY: prefer ADMIN_API_KEY env var over --admin-api-key flag.
+	// The flag is visible to other processes via /proc/<pid>/cmdline; the env
+	// var is not (on Linux, /proc/<pid>/environ requires the same UID).
+	if envKey := os.Getenv("ADMIN_API_KEY"); envKey != "" {
+		if *adminAPIKey != "" {
+			log.Printf("warning: ADMIN_API_KEY env var overrides --admin-api-key flag")
+		}
+		*adminAPIKey = envKey
+	}
 
 	// Redis Streams transport. Deferred close order: transport first (drains
 	// in-flight I/O), then the underlying Redis client.
@@ -126,7 +138,13 @@ func main() {
 func mustEnforcer(mode, adminDB, adminURL, adminAPIKey string) (gateway.PolicyEnforcer, func()) {
 	switch mode {
 	case "embedded":
-		store, err := iadmin.NewSQLiteStore(adminDB)
+		// SECURITY: resolve symlinks so the opened file is the real path.
+		// Consistent with the guard in cmd/aga2aga/helpers.go (CWE-22/61).
+		resolvedDB, err := filepath.EvalSymlinks(adminDB)
+		if err != nil {
+			log.Fatalf("resolve admin-db path: %v", err)
+		}
+		store, err := iadmin.NewSQLiteStore(resolvedDB)
 		if err != nil {
 			log.Fatalf("open admin store: %v", err)
 		}
