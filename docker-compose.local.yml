@@ -1,0 +1,91 @@
+# Local development compose — alternate host ports to avoid conflicts.
+# Ports can be customised via environment variables or a .env file:
+#
+#   REDIS_PORT   — host port for Redis    (default: 6380)
+#   ADMIN_PORT   — host port for Admin UI (default: 8087)
+#   GATEWAY_PORT — host port for Gateway  (default: 3001)
+#   ADMIN_API_KEY — Bearer token (required to start gateway)
+#
+# Quick start:
+#   1. docker compose -f docker-compose.local.yml up -d redis admin
+#   2. Log in at http://localhost:8087 (admin / changeme) — CHANGE THE PASSWORD.
+#   3. Create an API key under "API Keys".
+#   4. ADMIN_API_KEY=<key> docker compose -f docker-compose.local.yml up -d gateway
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  admin:
+    image: aga2aga-admin
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ADMIN_PORT:-8087}:8080"
+    volumes:
+      - admin-data:/data
+    command:
+      - "--addr=:8080"
+      - "--db=/data/admin.db"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  gateway:
+    image: aga2aga-gateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-3001}:3000"
+    environment:
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-}
+    command:
+      - "--mcp-transport=http"
+      - "--addr=:3000"
+      - "--redis-addr=redis:6379"
+      - "--policy-mode=remote"
+      - "--admin-url=http://admin:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  admin-data:

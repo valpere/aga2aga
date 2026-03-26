@@ -7,6 +7,9 @@ type UserStore interface {
 	CreateUser(ctx context.Context, u *User) error
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
 	GetUserByID(ctx context.Context, id string) (*User, error)
+	// UpdateUserPassword replaces the stored bcrypt hash for the given user ID.
+	// Returns an error if the user is not found or the update fails.
+	UpdateUserPassword(ctx context.Context, id, hashedPassword string) error
 }
 
 // AgentStore persists and retrieves RegisteredAgent records.

@@ -146,6 +146,22 @@ func (s *SQLiteStore) GetUserByID(ctx context.Context, id string) (*admin.User, 
 	return scanUser(row)
 }
 
+func (s *SQLiteStore) UpdateUserPassword(ctx context.Context, id, hashedPassword string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE users SET password=? WHERE id=?`, hashedPassword, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("user %q not found", id)
+	}
+	return nil
+}
+
 func scanUser(row *sql.Row) (*admin.User, error) {
 	var u admin.User
 	var role, createdAt string

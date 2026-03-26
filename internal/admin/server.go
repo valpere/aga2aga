@@ -16,7 +16,7 @@ var assets embed.FS
 type Server struct {
 	store    admin.Store
 	sessions *Sessions
-	tmpls    *template.Template
+	funcMap  template.FuncMap
 }
 
 // NewServer constructs a Server, parsing all embedded templates.
@@ -42,14 +42,10 @@ func NewServer(store admin.Store, hashKey, blockKey []byte) (*Server, error) {
 			}
 		},
 	}
-	tmpls, err := template.New("").Funcs(funcMap).ParseFS(assets, "templates/*.html")
-	if err != nil {
-		return nil, err
-	}
 	return &Server{
 		store:    store,
 		sessions: NewSessions(hashKey, blockKey),
-		tmpls:    tmpls,
+		funcMap:  funcMap,
 	}, nil
 }
 
@@ -67,6 +63,9 @@ func (srv *Server) Handler() http.Handler {
 
 	// Protected routes (require valid session)
 	protected := srv.requireAuth
+
+	mux.Handle("GET /profile", protected(http.HandlerFunc(srv.handleProfileGet)))
+	mux.Handle("POST /profile", protected(http.HandlerFunc(srv.handleProfilePost)))
 
 	mux.Handle("GET /", protected(http.HandlerFunc(srv.handleDashboard)))
 	mux.Handle("GET /agents", protected(http.HandlerFunc(srv.handleAgentList)))
@@ -96,10 +95,32 @@ func (srv *Server) Handler() http.Handler {
 	return mux
 }
 
-// render executes the named template with data, writing to w.
+// render executes the named page template inside the shared layout.
+//
+// Templates are parsed per-request (layout.html + the named page template)
+// so that {{define "title"}} and {{define "content"}} blocks from different
+// pages do not overwrite each other in a shared namespace — a consequence of
+// how Go's html/template merges all {{define}} blocks when templates are
+// parsed together with ParseFS("templates/*.html").
 func (srv *Server) render(w http.ResponseWriter, name string, data interface{}) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := srv.tmpls.ExecuteTemplate(w, name, data); err != nil {
+
+	// login.html is a self-contained page with no layout wrapper.
+	// All other pages define {{define "content"}} and are rendered inside layout.html.
+	var (
+		tmpl *template.Template
+		err  error
+	)
+	if name == "login.html" {
+		tmpl, err = template.New(name).Funcs(srv.funcMap).ParseFS(assets, "templates/"+name)
+	} else {
+		tmpl, err = template.New("layout.html").Funcs(srv.funcMap).ParseFS(assets, "templates/layout.html", "templates/"+name)
+	}
+	if err != nil {
+		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := tmpl.Execute(w, data); err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
 	}
 }
