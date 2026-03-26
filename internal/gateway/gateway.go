@@ -61,3 +61,17 @@ func (g *Gateway) Run(ctx context.Context, mcpTransport mcpsdk.Transport) error 
 	g.pending.StartCleanup(ctx, g.cfg.PendingTTL)
 	return g.server.Run(ctx, mcpTransport)
 }
+
+// Server returns the underlying MCP server. Use this when integrating with
+// alternative transports (e.g. StreamableHTTPHandler) that require direct
+// access to the server rather than using Run.
+func (g *Gateway) Server() *mcpsdk.Server {
+	return g.server
+}
+
+// StartCleanup starts the PendingMap eviction goroutine. It is called
+// automatically by Run; call it explicitly when using an alternative
+// transport that bypasses Run.
+func (g *Gateway) StartCleanup(ctx context.Context) {
+	g.pending.StartCleanup(ctx, g.cfg.PendingTTL)
+}
