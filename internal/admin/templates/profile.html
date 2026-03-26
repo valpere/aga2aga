@@ -1,0 +1,27 @@
+{{define "title"}}Profile — aga2aga Admin{{end}}
+{{define "content"}}
+<h1>Profile</h1>
+<p><strong>Username:</strong> {{.Session.Username}}</p>
+<p><strong>Role:</strong> {{.Session.Role}}</p>
+
+<h2 style="margin-top:2rem">Change Password</h2>
+
+{{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+{{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+<form method="POST" action="/profile" style="max-width:400px">
+  <div class="form-group">
+    <label for="current_password">Current Password</label>
+    <input type="password" id="current_password" name="current_password" required>
+  </div>
+  <div class="form-group">
+    <label for="new_password">New Password</label>
+    <input type="password" id="new_password" name="new_password" required>
+  </div>
+  <div class="form-group">
+    <label for="confirm_password">Confirm New Password</label>
+    <input type="password" id="confirm_password" name="confirm_password" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Change Password</button>
+</form>
+{{end}}

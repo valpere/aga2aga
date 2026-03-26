@@ -54,6 +54,65 @@ func (srv *Server) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+type profilePage struct {
+	Page    string
+	Session sessionData
+	Success string
+	Error   string
+}
+
+func (srv *Server) handleProfileGet(w http.ResponseWriter, r *http.Request) {
+	sd := sessionFromCtx(r)
+	srv.render(w, "profile.html", profilePage{Page: "profile", Session: sd})
+}
+
+func (srv *Server) handleProfilePost(w http.ResponseWriter, r *http.Request) {
+	sd := sessionFromCtx(r)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	current := r.FormValue("current_password")
+	newPw := r.FormValue("new_password")
+	confirm := r.FormValue("confirm_password")
+
+	renderErr := func(msg string) {
+		srv.render(w, "profile.html", profilePage{Page: "profile", Session: sd, Error: msg})
+	}
+
+	if newPw == "" {
+		renderErr("New password must not be empty.")
+		return
+	}
+	if newPw != confirm {
+		renderErr("New password and confirmation do not match.")
+		return
+	}
+
+	u, err := srv.store.GetUserByID(r.Context(), sd.UserID)
+	if err != nil {
+		renderErr("Could not load user.")
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(current)); err != nil {
+		renderErr("Current password is incorrect.")
+		return
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPw), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if err := srv.store.UpdateUserPassword(r.Context(), sd.UserID, string(hashed)); err != nil {
+		http.Error(w, "failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	recordAudit(r.Context(), srv.store, sd, "user.password_change", "user", sd.UserID, "changed password")
+	srv.render(w, "profile.html", profilePage{Page: "profile", Session: sd, Success: "Password changed successfully."})
+}
+
 func (srv *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if sd, err := srv.sessions.Get(r); err == nil {
 		recordAudit(r.Context(), srv.store, sd, "user.logout", "session", sd.UserID, "logged out")

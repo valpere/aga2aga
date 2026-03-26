@@ -64,6 +64,9 @@ func (srv *Server) Handler() http.Handler {
 	// Protected routes (require valid session)
 	protected := srv.requireAuth
 
+	mux.Handle("GET /profile", protected(http.HandlerFunc(srv.handleProfileGet)))
+	mux.Handle("POST /profile", protected(http.HandlerFunc(srv.handleProfilePost)))
+
 	mux.Handle("GET /", protected(http.HandlerFunc(srv.handleDashboard)))
 	mux.Handle("GET /agents", protected(http.HandlerFunc(srv.handleAgentList)))
 	mux.Handle("GET /agents/new", protected(http.HandlerFunc(srv.handleAgentNewGet)))
