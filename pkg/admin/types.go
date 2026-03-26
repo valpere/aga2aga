@@ -92,12 +92,12 @@ type CommunicationPolicy struct {
 type AuditEvent struct {
 	ID         string    `db:"id"`
 	OrgID      string    `db:"org_id"`
-	UserID     string    `db:"user_id"`    // who performed the action
-	Username   string    `db:"username"`   // denormalised for display without joins
-	Action     string    `db:"action"`     // e.g. "agent.register", "policy.create"
+	UserID     string    `db:"user_id"`     // who performed the action
+	Username   string    `db:"username"`    // denormalised for display without joins
+	Action     string    `db:"action"`      // e.g. "agent.register", "policy.create"
 	TargetType string    `db:"target_type"` // "agent" | "policy" | "session"
-	TargetID   string    `db:"target_id"`  // ID of the affected entity
-	Detail     string    `db:"detail"`     // human-readable summary
+	TargetID   string    `db:"target_id"`   // ID of the affected entity
+	Detail     string    `db:"detail"`      // human-readable summary
 	CreatedAt  time.Time `db:"created_at"`
 }
 
@@ -106,9 +106,9 @@ type AuditEvent struct {
 type APIKey struct {
 	ID        string    `db:"id"`
 	OrgID     string    `db:"org_id"`
-	Name      string    `db:"name"`      // human label
-	KeyHash   string    `db:"key_hash"`  // SHA-256 hex of the raw key
-	Role      Role      `db:"role"`      // operator | viewer (never admin)
+	Name      string    `db:"name"`       // human label
+	KeyHash   string    `db:"key_hash"`   // SHA-256 hex of the raw key
+	Role      Role      `db:"role"`       // operator | viewer (never admin)
 	CreatedBy string    `db:"created_by"` // User.ID
 	CreatedAt time.Time `db:"created_at"`
 	RevokedAt time.Time `db:"revoked_at"` // zero = active

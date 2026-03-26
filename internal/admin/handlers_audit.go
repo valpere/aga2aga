@@ -7,10 +7,10 @@ import (
 )
 
 type auditPage struct {
-	Page   string
+	Page    string
 	Session sessionData
-	Events []admin.AuditEvent
-	Filter string
+	Events  []admin.AuditEvent
+	Filter  string
 }
 
 func (srv *Server) handleAuditList(w http.ResponseWriter, r *http.Request) {

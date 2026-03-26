@@ -61,34 +61,34 @@ func (srv *Server) Handler() http.Handler {
 	mux.Handle("GET /static/", http.FileServer(http.FS(assets)))
 
 	// Public routes
-	mux.HandleFunc("GET /login",  srv.handleLoginGet)
+	mux.HandleFunc("GET /login", srv.handleLoginGet)
 	mux.HandleFunc("POST /login", srv.handleLoginPost)
 	mux.HandleFunc("POST /logout", srv.handleLogout)
 
 	// Protected routes (require valid session)
 	protected := srv.requireAuth
 
-	mux.Handle("GET /",              protected(http.HandlerFunc(srv.handleDashboard)))
-	mux.Handle("GET /agents",        protected(http.HandlerFunc(srv.handleAgentList)))
-	mux.Handle("GET /agents/new",    protected(http.HandlerFunc(srv.handleAgentNewGet)))
-	mux.Handle("POST /agents/new",   protected(requireRole(admin.RoleOperator, srv.handleAgentNewPost)))
-	mux.Handle("GET /agents/{id}",   protected(http.HandlerFunc(srv.handleAgentDetail)))
-	mux.Handle("POST /agents/{id}/suspend",  protected(requireRole(admin.RoleAdmin, srv.handleAgentSuspend)))
+	mux.Handle("GET /", protected(http.HandlerFunc(srv.handleDashboard)))
+	mux.Handle("GET /agents", protected(http.HandlerFunc(srv.handleAgentList)))
+	mux.Handle("GET /agents/new", protected(http.HandlerFunc(srv.handleAgentNewGet)))
+	mux.Handle("POST /agents/new", protected(requireRole(admin.RoleOperator, srv.handleAgentNewPost)))
+	mux.Handle("GET /agents/{id}", protected(http.HandlerFunc(srv.handleAgentDetail)))
+	mux.Handle("POST /agents/{id}/suspend", protected(requireRole(admin.RoleAdmin, srv.handleAgentSuspend)))
 	mux.Handle("POST /agents/{id}/activate", protected(requireRole(admin.RoleAdmin, srv.handleAgentActivate)))
-	mux.Handle("POST /agents/{id}/revoke",   protected(requireRole(admin.RoleAdmin, srv.handleAgentRevoke)))
+	mux.Handle("POST /agents/{id}/revoke", protected(requireRole(admin.RoleAdmin, srv.handleAgentRevoke)))
 
-	mux.Handle("GET /policies",           protected(http.HandlerFunc(srv.handlePolicyList)))
-	mux.Handle("GET /policies/new",       protected(http.HandlerFunc(srv.handlePolicyNewGet)))
-	mux.Handle("POST /policies/new",      protected(requireRole(admin.RoleOperator, srv.handlePolicyNewPost)))
+	mux.Handle("GET /policies", protected(http.HandlerFunc(srv.handlePolicyList)))
+	mux.Handle("GET /policies/new", protected(http.HandlerFunc(srv.handlePolicyNewGet)))
+	mux.Handle("POST /policies/new", protected(requireRole(admin.RoleOperator, srv.handlePolicyNewPost)))
 	mux.Handle("GET /policies/{id}/edit", protected(http.HandlerFunc(srv.handlePolicyEditGet)))
-	mux.Handle("POST /policies/{id}/edit",   protected(requireRole(admin.RoleOperator, srv.handlePolicyEditPost)))
+	mux.Handle("POST /policies/{id}/edit", protected(requireRole(admin.RoleOperator, srv.handlePolicyEditPost)))
 	mux.Handle("POST /policies/{id}/delete", protected(requireRole(admin.RoleOperator, srv.handlePolicyDelete)))
 
 	mux.Handle("GET /audit", protected(http.HandlerFunc(srv.handleAuditList)))
 
-	mux.Handle("GET /api-keys",                  protected(requireRole(admin.RoleAdmin, srv.handleAPIKeyList)))
-	mux.Handle("POST /api-keys/new",             protected(requireRole(admin.RoleAdmin, srv.handleAPIKeyNewPost)))
-	mux.Handle("POST /api-keys/{id}/revoke",     protected(requireRole(admin.RoleAdmin, srv.handleAPIKeyRevoke)))
+	mux.Handle("GET /api-keys", protected(requireRole(admin.RoleAdmin, srv.handleAPIKeyList)))
+	mux.Handle("POST /api-keys/new", protected(requireRole(admin.RoleAdmin, srv.handleAPIKeyNewPost)))
+	mux.Handle("POST /api-keys/{id}/revoke", protected(requireRole(admin.RoleAdmin, srv.handleAPIKeyRevoke)))
 
 	// JSON API — authenticated by Bearer token (API key), not session cookie
 	mux.HandleFunc("GET /api/v1/evaluate", srv.handleAPIEvaluate)

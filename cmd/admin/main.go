@@ -27,9 +27,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	iadmin "github.com/valpere/aga2aga/internal/admin"
 	"github.com/valpere/aga2aga/pkg/admin"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 

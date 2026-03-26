@@ -211,21 +211,21 @@ func TestHandleGetTask(t *testing.T) {
 
 func TestHandleCompleteTask(t *testing.T) {
 	tests := []struct {
-		name         string
-		taskID       string
-		agent        string
-		result       string
-		prepPending  bool
-		allowed      bool
-		enforcerErr  error
-		publishErr   error
-		ackErr       error
-		wantErr      bool
-		wantAcked    bool
-		wantPublish  string
-		wantDocType  string
-		wantDocFrom  string
-		wantDocTo    string
+		name        string
+		taskID      string
+		agent       string
+		result      string
+		prepPending bool
+		allowed     bool
+		enforcerErr error
+		publishErr  error
+		ackErr      error
+		wantErr     bool
+		wantAcked   bool
+		wantPublish string
+		wantDocType string
+		wantDocFrom string
+		wantDocTo   string
 	}{
 		{
 			name:        "success — publishes task.result with correct envelope",
