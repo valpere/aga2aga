@@ -675,6 +675,20 @@ func TestHandleReceiveMessage(t *testing.T) {
 			wantErr:   true,
 			wantAcked: true,
 		},
+		{
+			name:    "oversized received body returns error",
+			agent:   "agent-a",
+			allowed: true,
+			delivery: &transport.Delivery{
+				Doc: &document.Document{
+					Envelope: document.Envelope{ID: "big-1", Type: "agent.message", From: "agent-b"},
+					Body:     string(make([]byte, document.MaxDocumentBytes+1)),
+				},
+				MsgID: "redis-2-0",
+			},
+			wantErr:   true,
+			wantAcked: true, // Ack fires before the size check returns error
+		},
 	}
 
 	for _, tc := range tests {

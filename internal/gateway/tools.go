@@ -296,6 +296,14 @@ func (g *Gateway) handleReceiveMessage(ctx context.Context, _ *mcpsdk.CallToolRe
 		if err := g.trans.Ack(ctx, topic, delivery.MsgID); err != nil {
 			return nil, receiveMessageOut{}, fmt.Errorf("gateway: ack message: %w", err)
 		}
+		// Guard inbound body size: the transport does not enforce this on received
+		// documents, so a malformed or oversized message must be rejected here (CWE-400).
+		if len(delivery.Doc.Body) > document.MaxDocumentBytes {
+			return nil, receiveMessageOut{}, fmt.Errorf("gateway: received message body exceeds maximum size")
+		}
+		// SECURITY: delivery.Doc.From is self-reported wire data (unverified until
+		// Phase 3 / Ed25519). MCP callers MUST NOT make authorization decisions based
+		// on this field alone. CWE-287.
 		return nil, receiveMessageOut{From: delivery.Doc.From, Body: delivery.Doc.Body}, nil
 	case <-tctx.Done():
 		return nil, receiveMessageOut{}, nil
