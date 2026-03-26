@@ -12,11 +12,14 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /admin ./cmd/admin
 
-# Stage 2: Runtime — distroless/static:nonroot contains only the binary, no shell or toolchain.
-FROM gcr.io/distroless/static:nonroot
+# Stage 2: Runtime — alpine is used (not distroless) so docker-compose healthchecks
+# can use wget. The binary is fully static (CGO_ENABLED=0) so it runs in any image.
+FROM alpine:3
+
+RUN apk add --no-cache wget
 
 COPY --from=builder /admin /admin
 
-USER nonroot:nonroot
+USER nobody
 ENTRYPOINT ["/admin"]
 CMD ["--addr=:8080", "--db=/data/admin.db"]
