@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/valpere/aga2aga/pkg/document"
+	"github.com/valpere/aga2aga/pkg/protocol"
 )
 
 // --- input/output types for MCP tool handlers ----------------------------
@@ -79,12 +82,80 @@ func (g *Gateway) handleGetTask(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 	}
 }
 
-func (g *Gateway) handleCompleteTask(_ context.Context, _ *mcpsdk.CallToolRequest, _ completeTaskIn) (*mcpsdk.CallToolResult, completeTaskOut, error) {
-	return nil, completeTaskOut{}, fmt.Errorf("not implemented")
+func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequest, in completeTaskIn) (*mcpsdk.CallToolResult, completeTaskOut, error) {
+	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
+	if err != nil {
+		return nil, completeTaskOut{}, fmt.Errorf("gateway: policy check: %w", err)
+	}
+	if !allowed {
+		return nil, completeTaskOut{}, fmt.Errorf("gateway: agent %q not allowed", in.Agent)
+	}
+
+	topic, msgID, ok := g.pending.LoadAndDelete(in.TaskID)
+	if !ok {
+		return nil, completeTaskOut{}, fmt.Errorf("gateway: unknown task_id %q", in.TaskID)
+	}
+
+	doc, err := document.NewBuilder(protocol.TaskResult).
+		ID(uuid.New().String()).
+		From(g.cfg.AgentID).
+		To(in.Agent).
+		ExecID(in.TaskID).
+		Field("step", "result").
+		InReplyTo(in.TaskID).
+		Body(in.Result).
+		Build()
+	if err != nil {
+		return nil, completeTaskOut{}, fmt.Errorf("gateway: build result doc: %w", err)
+	}
+
+	if err := g.trans.Publish(ctx, "agent.events.completed", doc); err != nil {
+		return nil, completeTaskOut{}, fmt.Errorf("gateway: publish result: %w", err)
+	}
+
+	if err := g.trans.Ack(ctx, topic, msgID); err != nil {
+		return nil, completeTaskOut{}, fmt.Errorf("gateway: ack task: %w", err)
+	}
+
+	return nil, completeTaskOut{Status: "ok"}, nil
 }
 
-func (g *Gateway) handleFailTask(_ context.Context, _ *mcpsdk.CallToolRequest, _ failTaskIn) (*mcpsdk.CallToolResult, failTaskOut, error) {
-	return nil, failTaskOut{}, fmt.Errorf("not implemented")
+func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest, in failTaskIn) (*mcpsdk.CallToolResult, failTaskOut, error) {
+	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
+	if err != nil {
+		return nil, failTaskOut{}, fmt.Errorf("gateway: policy check: %w", err)
+	}
+	if !allowed {
+		return nil, failTaskOut{}, fmt.Errorf("gateway: agent %q not allowed", in.Agent)
+	}
+
+	topic, msgID, ok := g.pending.LoadAndDelete(in.TaskID)
+	if !ok {
+		return nil, failTaskOut{}, fmt.Errorf("gateway: unknown task_id %q", in.TaskID)
+	}
+
+	doc, err := document.NewBuilder(protocol.TaskFail).
+		ID(uuid.New().String()).
+		From(g.cfg.AgentID).
+		To(in.Agent).
+		ExecID(in.TaskID).
+		Field("step", "fail").
+		InReplyTo(in.TaskID).
+		Body(in.Error).
+		Build()
+	if err != nil {
+		return nil, failTaskOut{}, fmt.Errorf("gateway: build fail doc: %w", err)
+	}
+
+	if err := g.trans.Publish(ctx, "agent.events.failed", doc); err != nil {
+		return nil, failTaskOut{}, fmt.Errorf("gateway: publish fail: %w", err)
+	}
+
+	if err := g.trans.Ack(ctx, topic, msgID); err != nil {
+		return nil, failTaskOut{}, fmt.Errorf("gateway: ack task: %w", err)
+	}
+
+	return nil, failTaskOut{Status: "ok"}, nil
 }
 
 func (g *Gateway) handleHeartbeat(_ context.Context, _ *mcpsdk.CallToolRequest, _ heartbeatIn) (*mcpsdk.CallToolResult, heartbeatOut, error) {
