@@ -74,6 +74,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
+      # Empty default allows `docker compose config` to validate without the key set.
+      # The gateway binary enforces non-empty in remote policy mode at startup.
       - ADMIN_API_KEY=${ADMIN_API_KEY:-}
     command:
       - "--mcp-transport=http"
@@ -101,4 +103,6 @@ services:
       - ALL
 
 volumes:
+  # admin-data persists the SQLite database across container restarts.
+  # Back up this volume before upgrading the admin image in production.
   admin-data:
