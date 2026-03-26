@@ -107,7 +107,7 @@ pkg/transport/    Transport abstraction (Redis, Gossip)       (stub)
 pkg/identity/     Ed25519 identity and trust                  (stub)
 pkg/negotiation/  Negotiation protocol engine                 (stub)
 internal/admin/   Web admin HTTP handlers, middleware, SQLite store ← DONE (issue #86)
-internal/gateway/ MCP Gateway implementation                       (Phase 2)
+internal/gateway/ MCP Gateway implementation                       ← DONE (#90, #91)
 pkg/admin/        Admin domain types, Store interface, policy eval ← DONE (issue #86)
 docs/             All project documentation
 ```
@@ -140,7 +140,7 @@ docs/             All project documentation
 - `RedisTransport` — `Publish`, `Subscribe`, `Ack`, `Close`; context on all I/O; wraps go-redis v9
 - `PendingMap` — taskID → msgID mapping with configurable TTL-based cleanup goroutine; concurrent-safe
 
-#### Implemented: internal/gateway/policy (#90)
+#### Implemented: internal/gateway (#90, #91)
 
 - `PolicyEnforcer` interface — `Allowed(ctx, source, target string) (bool, error)`
 - `EmbeddedEnforcer` — in-process via `admin.PolicyStore.ListPolicies` + `admin.Evaluate`; default deny
@@ -149,6 +149,16 @@ docs/             All project documentation
   - `io.LimitReader(4KiB)` on response body before JSON decode (CWE-400)
   - Bearer token never in error messages (CWE-532)
   - `url.QueryEscape` on source/target params
+- `Config` struct + `DefaultConfig()` — `AgentID`, `TaskReadTimeout` (5s), `PendingTTL` (5m)
+- `Gateway` struct — wires MCP server, Transport, PendingMap, PolicyEnforcer
+- `New(t, e, cfg)` — creates Gateway with 4 MCP tools registered
+- `Run(ctx, mcpTransport)` — starts PendingMap cleanup, serves MCP over given transport
+- 4 tool handlers:
+  - `get_task`: validates agent ID → policy check → subscribe → wait with timeout → store in PendingMap → return
+  - `complete_task`: validates → policy → body size cap → LoadAndDelete → build task.result → Publish → Ack
+  - `fail_task`: same pattern, publishes to `agent.events.failed`
+  - `heartbeat`: no-op, returns `{status: "ok"}`
+- Security: agent ID regex `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]$` (CWE-20/CWE-74); `taskID = delivery.MsgID` (transport-layer ID, not attacker-controlled `Doc.ID`); body capped at `MaxDocumentBytes` (CWE-400); `SECURITY(Phase 3):` comments at all `Allowed()` call sites (self-reported agent ID, CWE-287)
 
 #### Implemented: pkg/transport, pkg/identity, pkg/negotiation (stubs)
 
