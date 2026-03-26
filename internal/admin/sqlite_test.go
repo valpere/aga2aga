@@ -266,4 +266,9 @@ func TestSQLiteStore_UpdateUserPassword(t *testing.T) {
 	if got.Password != "new-hash" {
 		t.Errorf("password = %q, want %q", got.Password, "new-hash")
 	}
+
+	// Updating a non-existent user must return an error.
+	if err := s.UpdateUserPassword(ctx, "no-such-user", "x"); err == nil {
+		t.Error("UpdateUserPassword with unknown id: expected error, got nil")
+	}
 }

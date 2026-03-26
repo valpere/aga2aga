@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -111,6 +112,7 @@ func (srv *Server) handleProfilePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := srv.store.UpdateUserPassword(r.Context(), sd.UserID, string(hashed)); err != nil {
+		log.Printf("handleProfilePost: UpdateUserPassword for user %q: %v", sd.UserID, err)
 		http.Error(w, "failed to update password", http.StatusInternalServerError)
 		return
 	}
