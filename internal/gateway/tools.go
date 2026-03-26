@@ -61,5 +61,5 @@ func (g *Gateway) handleFailTask(_ context.Context, _ *mcpsdk.CallToolRequest, _
 }
 
 func (g *Gateway) handleHeartbeat(_ context.Context, _ *mcpsdk.CallToolRequest, _ heartbeatIn) (*mcpsdk.CallToolResult, heartbeatOut, error) {
-	return nil, heartbeatOut{}, fmt.Errorf("not implemented")
+	return nil, heartbeatOut{Status: "ok"}, nil
 }
