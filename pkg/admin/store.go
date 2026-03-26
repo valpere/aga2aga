@@ -46,7 +46,9 @@ type APIKeyStore interface {
 	CreateAPIKey(ctx context.Context, k *APIKey) error
 	GetAPIKeyByHash(ctx context.Context, hash string) (*APIKey, error)
 	ListAPIKeys(ctx context.Context, orgID string) ([]APIKey, error)
-	RevokeAPIKey(ctx context.Context, id string) error
+	// RevokeAPIKey marks the key as revoked. orgID is required so that a caller
+	// cannot revoke keys belonging to a different organization (CWE-639).
+	RevokeAPIKey(ctx context.Context, orgID, id string) error
 }
 
 // Store is the full persistence interface required by the admin server.
