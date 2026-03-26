@@ -241,6 +241,15 @@ func TestSQLiteStore_APIKeyRoundTrip(t *testing.T) {
 	if got.RevokedAt.IsZero() {
 		t.Errorf("after revoke, key.RevokedAt should be non-zero")
 	}
+
+	// Revoked keys must not appear in ListAPIKeys.
+	listAfterRevoke, err := s.ListAPIKeys(ctx, "org-1")
+	if err != nil {
+		t.Fatalf("ListAPIKeys after revoke: %v", err)
+	}
+	if len(listAfterRevoke) != 0 {
+		t.Errorf("ListAPIKeys after revoke: got %d keys, want 0 (revoked keys must be excluded)", len(listAfterRevoke))
+	}
 }
 
 func TestSQLiteStore_UpdateUserPassword(t *testing.T) {

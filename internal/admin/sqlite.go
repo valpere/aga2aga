@@ -370,7 +370,8 @@ func (s *SQLiteStore) GetAPIKeyByHash(ctx context.Context, hash string) (*admin.
 func (s *SQLiteStore) ListAPIKeys(ctx context.Context, orgID string) ([]admin.APIKey, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, org_id, name, key_hash, role, created_by, created_at, revoked_at
-		 FROM api_keys WHERE org_id=? ORDER BY created_at DESC`, orgID)
+		 FROM api_keys WHERE org_id=? AND (revoked_at IS NULL OR revoked_at='')
+		 ORDER BY created_at DESC`, orgID)
 	if err != nil {
 		return nil, err
 	}
