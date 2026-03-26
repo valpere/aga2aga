@@ -5,6 +5,7 @@ package integration_test
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"testing"
 	"time"
 
@@ -33,12 +34,17 @@ func startRedis(t *testing.T) *goredis.Client {
 	}
 	t.Cleanup(func() { _ = c.Terminate(context.Background()) })
 
-	addr, err := c.ConnectionString(ctx)
+	connStr, err := c.ConnectionString(ctx)
 	if err != nil {
 		t.Fatalf("redis connection string: %v", err)
 	}
-	// ConnectionString returns "redis://host:port" — strip the scheme for goredis.
-	rdb := goredis.NewClient(&goredis.Options{Addr: addr[len("redis://"):]})
+	// ConnectionString returns "redis://host:port". Parse with url.Parse so the
+	// code is robust to scheme changes (e.g. rediss://).
+	u, err := url.Parse(connStr)
+	if err != nil {
+		t.Fatalf("parse redis connection string %q: %v", connStr, err)
+	}
+	rdb := goredis.NewClient(&goredis.Options{Addr: u.Host})
 	t.Cleanup(func() { _ = rdb.Close() })
 	return rdb
 }
@@ -184,7 +190,8 @@ func TestGatewayIntegration_FailTask(t *testing.T) {
 	gw := gateway.New(trans, noopEnforcer{}, cfg)
 
 	t1, t2 := mcpsdk.NewInMemoryTransports()
-	go func() { _ = gw.Run(ctx, t1) }()
+	gwErrCh := make(chan error, 1)
+	go func() { gwErrCh <- gw.Run(ctx, t1) }()
 
 	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test-client", Version: "v0"}, nil)
 	cs, err := client.Connect(ctx, t2, nil)
