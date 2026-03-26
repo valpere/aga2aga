@@ -100,7 +100,7 @@ Fitness is a weighted score (quality 35%, safety 15%, reliability 20%, latency 1
 ```
 cmd/aga2aga/      CLI tool (aga2aga validate/create/inspect)  ← DONE (issue #21)
 cmd/admin/        Web admin UI binary (aga2aga-admin)         ← DONE (issue #86)
-cmd/gateway/      MCP Gateway binary                          (Phase 2)
+cmd/gateway/      MCP Gateway binary                          ← DONE (issue #92)
 pkg/document/     Skills Document parser, validator, builder  ← DONE (Phase 1)
 pkg/protocol/     Message types and registry                  ← DONE (issue #15)
 pkg/transport/    Transport abstraction (Redis, Gossip)       (stub)
@@ -140,7 +140,7 @@ docs/             All project documentation
 - `RedisTransport` — `Publish`, `Subscribe`, `Ack`, `Close`; context on all I/O; wraps go-redis v9
 - `PendingMap` — taskID → msgID mapping with configurable TTL-based cleanup goroutine; concurrent-safe
 
-#### Implemented: internal/gateway (#90, #91)
+#### Implemented: internal/gateway (#90, #91) and cmd/gateway (#92)
 
 - `PolicyEnforcer` interface — `Allowed(ctx, source, target string) (bool, error)`
 - `EmbeddedEnforcer` — in-process via `admin.PolicyStore.ListPolicies` + `admin.Evaluate`; default deny
@@ -159,6 +159,8 @@ docs/             All project documentation
   - `fail_task`: same pattern, publishes to `agent.events.failed`
   - `heartbeat`: no-op, returns `{status: "ok"}`
 - Security: agent ID regex `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]$` (CWE-20/CWE-74); `taskID = delivery.MsgID` (transport-layer ID, not attacker-controlled `Doc.ID`); body capped at `MaxDocumentBytes` (CWE-400); `SECURITY(Phase 3):` comments at all `Allowed()` call sites (self-reported agent ID, CWE-287)
+- `cmd/gateway/main.go` (#92): 10 CLI flags; ADMIN_API_KEY env var preferred over flag (CWE-214); LIFO defer — `rdb` deferred first (runs last), `trans` deferred second (runs first); stdio + HTTP transports; `WriteTimeout:0` on http.Server for SSE long-lived streams; graceful shutdown with 10s context; `mustEnforcer` with `filepath.EvalSymlinks` on `--admin-db` (CWE-22/61)
+- `PendingMap.StartCleanup` idempotent via `sync.Once` — safe to call from both `Gateway.Run()` (stdio) and `Gateway.StartCleanup()` (HTTP path) without spawning duplicate goroutines
 
 #### Implemented: pkg/transport, pkg/identity, pkg/negotiation (stubs)
 
