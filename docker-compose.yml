@@ -1,0 +1,75 @@
+# Local development environment: Redis + aga2aga admin + aga2aga gateway (HTTP transport).
+#
+# Quick start:
+#
+#   docker-compose up
+#
+# The MCP gateway is reachable at http://localhost:3000.
+# The admin UI is reachable at http://localhost:8080 (admin / changeme).
+#
+# To configure the gateway to use a specific API key:
+#
+#   1. Log in to the admin UI at http://localhost:8080
+#   2. Create an API key under the "API Keys" page
+#   3. Restart the gateway with the key set:
+#
+#      ADMIN_API_KEY=<key> docker-compose up gateway
+#
+# Gateway only (no policy enforcement — admin-url unreachable, gateway returns
+# policy-denied errors; useful for smoke-testing Redis connectivity):
+#
+#   docker-compose up redis gateway
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  admin:
+    image: aga2aga-admin
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - admin-data:/data
+    command:
+      - "--addr=:8080"
+      - "--db=/data/admin.db"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  gateway:
+    image: aga2aga-gateway
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-}
+    command:
+      - "--mcp-transport=http"
+      - "--addr=:3000"
+      - "--redis-addr=redis:6379"
+      - "--policy-mode=remote"
+      - "--admin-url=http://admin:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      admin:
+        condition: service_started
+
+volumes:
+  admin-data:
