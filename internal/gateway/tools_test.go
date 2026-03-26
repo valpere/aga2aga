@@ -468,3 +468,248 @@ func TestHandleFailTask(t *testing.T) {
 		})
 	}
 }
+
+// --- send_message tests ---------------------------------------------------
+
+func TestHandleSendMessage(t *testing.T) {
+	bigBody := string(make([]byte, document.MaxDocumentBytes+1))
+
+	tests := []struct {
+		name        string
+		agent       string
+		to          string
+		body        string
+		allowed     bool
+		enforcerErr error
+		publishErr  error
+		wantErr     bool
+		wantStatus  string
+		wantTopic   string
+		wantDocType string
+		wantDocFrom string
+		wantDocTo   string
+		wantBody    string
+	}{
+		{
+			name:        "success — publishes agent.message to recipient stream",
+			agent:       "agent-a",
+			to:          "agent-b",
+			body:        "watch out for genome-789",
+			allowed:     true,
+			wantStatus:  "ok",
+			wantTopic:   "agent.messages.agent-b",
+			wantDocType: "agent.message",
+			wantDocFrom: "agent-a",
+			wantDocTo:   "agent-b",
+			wantBody:    "watch out for genome-789",
+		},
+		{
+			name:    "invalid sender agent id returns error",
+			agent:   "",
+			to:      "agent-b",
+			body:    "hi",
+			wantErr: true,
+		},
+		{
+			name:    "sender with newline rejected",
+			agent:   "agent\nnewline",
+			to:      "agent-b",
+			body:    "hi",
+			wantErr: true,
+		},
+		{
+			name:    "invalid recipient id returns error",
+			agent:   "agent-a",
+			to:      "bad\nid",
+			body:    "hi",
+			wantErr: true,
+		},
+		{
+			name:    "policy denial returns error",
+			agent:   "agent-a",
+			to:      "agent-b",
+			body:    "hi",
+			allowed: false,
+			wantErr: true,
+		},
+		{
+			name:        "enforcer error propagates",
+			agent:       "agent-a",
+			to:          "agent-b",
+			body:        "hi",
+			enforcerErr: errors.New("store down"),
+			wantErr:     true,
+		},
+		{
+			name:    "body exceeds maximum size returns error",
+			agent:   "agent-a",
+			to:      "agent-b",
+			body:    bigBody,
+			allowed: true,
+			wantErr: true,
+		},
+		{
+			name:       "publish error returns error",
+			agent:      "agent-a",
+			to:         "agent-b",
+			body:       "hi",
+			allowed:    true,
+			publishErr: errors.New("redis down"),
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			trans := &mockTransport{
+				ch:         map[string]chan transport.Delivery{},
+				publishErr: tc.publishErr,
+			}
+			enf := &mockEnforcer{allowed: tc.allowed, err: tc.enforcerErr}
+			g := newTestGateway(t, trans, enf)
+
+			in := sendMessageIn{Agent: tc.agent, To: tc.to, Body: tc.body}
+			_, out, err := g.handleSendMessage(context.Background(), nil, in)
+
+			if (err != nil) != tc.wantErr {
+				t.Errorf("err = %v; wantErr %v", err, tc.wantErr)
+			}
+			if !tc.wantErr {
+				if out.Status != tc.wantStatus {
+					t.Errorf("status = %q; want %q", out.Status, tc.wantStatus)
+				}
+				if trans.publishTopic != tc.wantTopic {
+					t.Errorf("publishTopic = %q; want %q", trans.publishTopic, tc.wantTopic)
+				}
+				if trans.publishDoc != nil {
+					if string(trans.publishDoc.Type) != tc.wantDocType {
+						t.Errorf("doc.Type = %q; want %q", trans.publishDoc.Type, tc.wantDocType)
+					}
+					if trans.publishDoc.From != tc.wantDocFrom {
+						t.Errorf("doc.From = %q; want %q", trans.publishDoc.From, tc.wantDocFrom)
+					}
+					if len(trans.publishDoc.To) == 0 || string(trans.publishDoc.To[0]) != tc.wantDocTo {
+						t.Errorf("doc.To = %v; want [%q]", trans.publishDoc.To, tc.wantDocTo)
+					}
+					if trans.publishDoc.Body != tc.wantBody {
+						t.Errorf("doc.Body = %q; want %q", trans.publishDoc.Body, tc.wantBody)
+					}
+				}
+			}
+		})
+	}
+}
+
+// --- receive_message tests ------------------------------------------------
+
+func TestHandleReceiveMessage(t *testing.T) {
+	msgDoc := &document.Document{
+		Envelope: document.Envelope{
+			ID:   "msg-1",
+			Type: "agent.message",
+			From: "agent-b",
+		},
+		Body: "hello from b",
+	}
+
+	tests := []struct {
+		name         string
+		agent        string
+		allowed      bool
+		enforcerErr  error
+		subscribeErr error
+		ackErr       error
+		delivery     *transport.Delivery
+		wantErr      bool
+		wantFrom     string
+		wantBody     string
+		wantAcked    bool
+	}{
+		{
+			name:      "message delivered and acked immediately",
+			agent:     "agent-a",
+			allowed:   true,
+			delivery:  &transport.Delivery{Doc: msgDoc, MsgID: "redis-1-0"},
+			wantFrom:  "agent-b",
+			wantBody:  "hello from b",
+			wantAcked: true,
+		},
+		{
+			name:    "invalid agent id returns error",
+			agent:   "",
+			wantErr: true,
+		},
+		{
+			name:    "policy denial returns error",
+			agent:   "agent-a",
+			allowed: false,
+			wantErr: true,
+		},
+		{
+			name:        "enforcer error propagates",
+			agent:       "agent-a",
+			enforcerErr: errors.New("store down"),
+			wantErr:     true,
+		},
+		{
+			name:         "subscribe error returns error",
+			agent:        "agent-a",
+			allowed:      true,
+			subscribeErr: errors.New("redis down"),
+			wantErr:      true,
+		},
+		{
+			name:      "no message available returns empty without error",
+			agent:     "agent-a",
+			allowed:   true,
+			wantFrom:  "",
+			wantBody:  "",
+			wantAcked: false,
+		},
+		{
+			name:      "ack error returns error",
+			agent:     "agent-a",
+			allowed:   true,
+			ackErr:    errors.New("ack failed"),
+			delivery:  &transport.Delivery{Doc: msgDoc, MsgID: "redis-1-0"},
+			wantErr:   true,
+			wantAcked: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ch := make(chan transport.Delivery, 1)
+			if tc.delivery != nil {
+				ch <- *tc.delivery
+			}
+			trans := &mockTransport{
+				ch: map[string]chan transport.Delivery{
+					"agent.messages.agent-a": ch,
+				},
+				subscribeErr: tc.subscribeErr,
+				ackErr:       tc.ackErr,
+			}
+			enf := &mockEnforcer{allowed: tc.allowed, err: tc.enforcerErr}
+			g := newTestGateway(t, trans, enf)
+
+			in := receiveMessageIn{Agent: tc.agent}
+			_, out, err := g.handleReceiveMessage(context.Background(), nil, in)
+
+			if (err != nil) != tc.wantErr {
+				t.Errorf("err = %v; wantErr %v", err, tc.wantErr)
+			}
+			if !tc.wantErr {
+				if out.From != tc.wantFrom {
+					t.Errorf("from = %q; want %q", out.From, tc.wantFrom)
+				}
+				if out.Body != tc.wantBody {
+					t.Errorf("body = %q; want %q", out.Body, tc.wantBody)
+				}
+			}
+			if trans.acked != tc.wantAcked {
+				t.Errorf("acked = %v; want %v", trans.acked, tc.wantAcked)
+			}
+		})
+	}
+}

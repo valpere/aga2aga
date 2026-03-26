@@ -220,6 +220,7 @@ Images are tagged with the current git SHA and `:latest`.
 ## Documentation
 
 - [docs/RUNNING.md](docs/RUNNING.md) — how to build images, start services, connect an agent, and troubleshoot
+- [docs/AGENT_SETUP.md](docs/AGENT_SETUP.md) — configure `.mcp.json`, use the 4 MCP tools, conversation loop, agent ID rules
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed architecture: data flow, package dependency graph, API surface, security model
 - [docs/API.md](docs/API.md) — full API reference: all exported types, functions, and CLI flags with examples
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — TDD workflow, commit conventions, PR process, DO_NOT_TOUCH rules

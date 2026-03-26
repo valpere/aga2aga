@@ -200,3 +200,104 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 func (g *Gateway) handleHeartbeat(_ context.Context, _ *mcpsdk.CallToolRequest, _ heartbeatIn) (*mcpsdk.CallToolResult, heartbeatOut, error) {
 	return nil, heartbeatOut{Status: "ok"}, nil
 }
+
+// --- send_message / receive_message types --------------------------------
+
+type sendMessageIn struct {
+	Agent string `json:"agent"`
+	To    string `json:"to"`
+	Body  string `json:"body"`
+}
+
+type sendMessageOut struct {
+	Status string `json:"status"`
+}
+
+type receiveMessageIn struct {
+	Agent string `json:"agent"`
+}
+
+type receiveMessageOut struct {
+	From string `json:"from"`
+	Body string `json:"body"`
+}
+
+// --- tool handlers --------------------------------------------------------
+
+func (g *Gateway) handleSendMessage(ctx context.Context, _ *mcpsdk.CallToolRequest, in sendMessageIn) (*mcpsdk.CallToolResult, sendMessageOut, error) {
+	if !isValidAgentID(in.Agent) {
+		return nil, sendMessageOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
+	}
+	if !isValidAgentID(in.To) {
+		return nil, sendMessageOut{}, fmt.Errorf("gateway: invalid recipient id %q", in.To)
+	}
+
+	// SECURITY(Phase 3): in.Agent is self-reported by the MCP caller and is not
+	// cryptographically verified. Once pkg/identity is live, bind the verified
+	// Ed25519 public key from the MCP session to the agent identity and pass the
+	// verified ID here instead of in.Agent. See CWE-287.
+	allowed, err := g.enforcer.Allowed(ctx, in.Agent, in.To)
+	if err != nil {
+		return nil, sendMessageOut{}, fmt.Errorf("gateway: policy check: %w", err)
+	}
+	if !allowed {
+		return nil, sendMessageOut{}, fmt.Errorf("gateway: agent %q not allowed", in.Agent)
+	}
+
+	if len(in.Body) > document.MaxDocumentBytes {
+		return nil, sendMessageOut{}, fmt.Errorf("gateway: message body exceeds maximum size")
+	}
+
+	doc, err := document.NewBuilder(protocol.AgentMessage).
+		ID(uuid.New().String()).
+		From(in.Agent).
+		To(in.To).
+		Body(in.Body).
+		Build()
+	if err != nil {
+		return nil, sendMessageOut{}, fmt.Errorf("gateway: build message doc: %w", err)
+	}
+
+	if err := g.trans.Publish(ctx, "agent.messages."+in.To, doc); err != nil {
+		return nil, sendMessageOut{}, fmt.Errorf("gateway: publish message: %w", err)
+	}
+
+	return nil, sendMessageOut{Status: "ok"}, nil
+}
+
+func (g *Gateway) handleReceiveMessage(ctx context.Context, _ *mcpsdk.CallToolRequest, in receiveMessageIn) (*mcpsdk.CallToolResult, receiveMessageOut, error) {
+	if !isValidAgentID(in.Agent) {
+		return nil, receiveMessageOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
+	}
+
+	// SECURITY(Phase 3): in.Agent is self-reported — see handleSendMessage comment.
+	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
+	if err != nil {
+		return nil, receiveMessageOut{}, fmt.Errorf("gateway: policy check: %w", err)
+	}
+	if !allowed {
+		return nil, receiveMessageOut{}, fmt.Errorf("gateway: agent %q not allowed", in.Agent)
+	}
+
+	topic := "agent.messages." + in.Agent
+	ch, err := g.trans.Subscribe(ctx, topic)
+	if err != nil {
+		return nil, receiveMessageOut{}, fmt.Errorf("gateway: subscribe %q: %w", topic, err)
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, g.cfg.TaskReadTimeout)
+	defer cancel()
+
+	select {
+	case delivery, ok := <-ch:
+		if !ok {
+			return nil, receiveMessageOut{}, nil
+		}
+		if err := g.trans.Ack(ctx, topic, delivery.MsgID); err != nil {
+			return nil, receiveMessageOut{}, fmt.Errorf("gateway: ack message: %w", err)
+		}
+		return nil, receiveMessageOut{From: delivery.Doc.From, Body: delivery.Doc.Body}, nil
+	case <-tctx.Done():
+		return nil, receiveMessageOut{}, nil
+	}
+}

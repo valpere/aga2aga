@@ -17,7 +17,7 @@ type Gateway struct {
 	cfg      Config
 }
 
-// New creates a Gateway with all 4 MCP tools registered. The MCP server is
+// New creates a Gateway with all 6 MCP tools registered. The MCP server is
 // ready to accept connections after New returns — call Run to start serving.
 func New(t transport.Transport, e PolicyEnforcer, cfg Config) *Gateway {
 	srv := mcpsdk.NewServer(
@@ -35,7 +35,7 @@ func New(t transport.Transport, e PolicyEnforcer, cfg Config) *Gateway {
 	return g
 }
 
-// registerTools adds the 4 MCP tools to the server. Called once by New.
+// registerTools adds the 6 MCP tools to the server. Called once by New.
 func (g *Gateway) registerTools() {
 	mcpsdk.AddTool(g.server,
 		&mcpsdk.Tool{Name: "get_task", Description: "Fetch the next task from the agent's task stream."},
@@ -52,6 +52,14 @@ func (g *Gateway) registerTools() {
 	mcpsdk.AddTool(g.server,
 		&mcpsdk.Tool{Name: "heartbeat", Description: "Health check — returns ok."},
 		g.handleHeartbeat,
+	)
+	mcpsdk.AddTool(g.server,
+		&mcpsdk.Tool{Name: "send_message", Description: "Send a free-form message to another agent."},
+		g.handleSendMessage,
+	)
+	mcpsdk.AddTool(g.server,
+		&mcpsdk.Tool{Name: "receive_message", Description: "Fetch the next message from the agent's message stream."},
+		g.handleReceiveMessage,
 	)
 }
 
