@@ -63,12 +63,13 @@ func main() {
 		*adminAPIKey = envKey
 	}
 
-	// Redis Streams transport. Deferred close order: transport first (drains
-	// in-flight I/O), then the underlying Redis client.
+	// Redis Streams transport. Defer rdb first so it runs last (LIFO); trans
+	// is deferred second so it runs first — draining in-flight I/O before
+	// closing the underlying client.
 	rdb := goredis.NewClient(&goredis.Options{Addr: *redisAddr})
+	defer func() { _ = rdb.Close() }()
 	trans := redistransport.New(rdb, redistransport.Options{})
 	defer func() { _ = trans.Close() }()
-	defer func() { _ = rdb.Close() }()
 
 	// Policy enforcer.
 	enf, closeEnf := mustEnforcer(*policyMode, *adminDB, *adminURL, *adminAPIKey)
