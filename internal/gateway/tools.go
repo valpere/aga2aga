@@ -48,8 +48,35 @@ type heartbeatOut struct {
 
 // --- stub handlers (replaced task by task) --------------------------------
 
-func (g *Gateway) handleGetTask(_ context.Context, _ *mcpsdk.CallToolRequest, _ getTaskIn) (*mcpsdk.CallToolResult, getTaskOut, error) {
-	return nil, getTaskOut{}, fmt.Errorf("not implemented")
+func (g *Gateway) handleGetTask(ctx context.Context, _ *mcpsdk.CallToolRequest, in getTaskIn) (*mcpsdk.CallToolResult, getTaskOut, error) {
+	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
+	if err != nil {
+		return nil, getTaskOut{}, fmt.Errorf("gateway: policy check: %w", err)
+	}
+	if !allowed {
+		return nil, getTaskOut{}, fmt.Errorf("gateway: agent %q not allowed", in.Agent)
+	}
+
+	topic := "agent.tasks." + in.Agent
+	ch, err := g.trans.Subscribe(ctx, topic)
+	if err != nil {
+		return nil, getTaskOut{}, fmt.Errorf("gateway: subscribe %q: %w", topic, err)
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, g.cfg.TaskReadTimeout)
+	defer cancel()
+
+	select {
+	case delivery, ok := <-ch:
+		if !ok {
+			return nil, getTaskOut{}, nil
+		}
+		taskID := delivery.Doc.ID
+		g.pending.Store(taskID, topic, delivery.MsgID)
+		return nil, getTaskOut{TaskID: taskID, Body: delivery.Doc.Body}, nil
+	case <-tctx.Done():
+		return nil, getTaskOut{}, nil
+	}
 }
 
 func (g *Gateway) handleCompleteTask(_ context.Context, _ *mcpsdk.CallToolRequest, _ completeTaskIn) (*mcpsdk.CallToolResult, completeTaskOut, error) {
