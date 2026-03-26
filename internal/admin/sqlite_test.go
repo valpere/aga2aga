@@ -242,3 +242,28 @@ func TestSQLiteStore_APIKeyRoundTrip(t *testing.T) {
 		t.Errorf("after revoke, key.RevokedAt should be non-zero")
 	}
 }
+
+func TestSQLiteStore_UpdateUserPassword(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	org := &admin.Organization{ID: "org-1", Name: "Acme", CreatedAt: time.Now().UTC()}
+	_ = s.CreateOrg(ctx, org)
+	u := &admin.User{
+		ID: "user-1", OrgID: "org-1", Username: "alice",
+		Password: "old-hash", Role: admin.RoleAdmin, CreatedAt: time.Now().UTC(),
+	}
+	_ = s.CreateUser(ctx, u)
+
+	if err := s.UpdateUserPassword(ctx, "user-1", "new-hash"); err != nil {
+		t.Fatalf("UpdateUserPassword: %v", err)
+	}
+
+	got, err := s.GetUserByID(ctx, "user-1")
+	if err != nil {
+		t.Fatalf("GetUserByID after update: %v", err)
+	}
+	if got.Password != "new-hash" {
+		t.Errorf("password = %q, want %q", got.Password, "new-hash")
+	}
+}

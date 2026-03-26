@@ -146,6 +146,12 @@ func (s *SQLiteStore) GetUserByID(ctx context.Context, id string) (*admin.User, 
 	return scanUser(row)
 }
 
+func (s *SQLiteStore) UpdateUserPassword(ctx context.Context, id, hashedPassword string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET password=? WHERE id=?`, hashedPassword, id)
+	return err
+}
+
 func scanUser(row *sql.Row) (*admin.User, error) {
 	var u admin.User
 	var role, createdAt string

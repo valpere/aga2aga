@@ -7,6 +7,7 @@ type UserStore interface {
 	CreateUser(ctx context.Context, u *User) error
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
 	GetUserByID(ctx context.Context, id string) (*User, error)
+	UpdateUserPassword(ctx context.Context, id, hashedPassword string) error
 }
 
 // AgentStore persists and retrieves RegisteredAgent records.
