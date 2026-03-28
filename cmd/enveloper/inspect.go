@@ -13,7 +13,7 @@ func newInspectCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "inspect <file>",
-		Short: "Inspect a Skills Document — print envelope fields",
+		Short: "Inspect an envelope document — print envelope fields",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]

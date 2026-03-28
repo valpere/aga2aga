@@ -346,4 +346,5 @@ git checkout main && git pull
 9. **JSON parse failure** — retry once, skip reviewer on second failure
 10. **Provider switch is permanent** — `sed` into config.yaml immediately
 11. **Arbiter always runs** — even if all 3 model rounds stop early
-12. **CI must pass before review rounds** — never start Round 1 with failing checks; fix first, then review
+12. **CI must pass before review rounds** — never start Round 1 with failing checks; fix CI first, then start reviews
+13. **Every PR must go through /fix-review before merging** — no exceptions, including docs-only and trivial changes; auto-merge happens inside the Arbiter step, nowhere else

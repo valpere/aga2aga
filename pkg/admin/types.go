@@ -60,7 +60,7 @@ type User struct {
 }
 
 // RegisteredAgent is an agent instance authorized to operate within an org.
-// AgentID corresponds to Envelope.From in the Skills Document protocol.
+// AgentID corresponds to Envelope.From in the aga2aga envelope protocol.
 type RegisteredAgent struct {
 	ID           string      `db:"id"`
 	OrgID        string      `db:"org_id"`

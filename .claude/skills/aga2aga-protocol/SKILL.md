@@ -1,10 +1,10 @@
 ---
 name: aga2aga-protocol
-description: "Expert reference for the aga2aga Skills Document protocol. Use when working with message types, YAML headers, document parsing/validation/building, lifecycle transitions, or agent genome fields."
+description: "Expert reference for the aga2aga envelope protocol. Use when working with message types, YAML headers, envelope document parsing/validation/building, lifecycle transitions, or agent genome fields."
 metadata:
   version: "1.0.0"
   domain: protocol
-  triggers: skills document, yaml header, message type, parse document, validate document, build document, lifecycle, agent genome, spawn proposal, negotiation, task request
+  triggers: envelope document, envelope protocol, yaml header, message type, parse document, validate document, build document, lifecycle, agent genome, spawn proposal, negotiation, task request
   scope: implementation, design, review
 ---
 

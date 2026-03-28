@@ -1,5 +1,5 @@
-// Package document defines the Go struct hierarchy for all Skills Document
-// message types used in the aga2aga Skills Document protocol.
+// Package document defines the Go struct hierarchy for all envelope document
+// message types used in the aga2aga envelope protocol.
 package document
 
 import (
@@ -42,7 +42,7 @@ func (s *StringOrList) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// Envelope holds the standard wire fields present in every Skills Document header.
+// Envelope holds the standard wire fields present in every envelope document header.
 //
 // SECURITY: The From field is self-reported and cryptographically unverified until
 // Phase 3 (Ed25519 signatures via pkg/identity). Authorization decisions MUST NOT
@@ -67,7 +67,7 @@ type Envelope struct {
 	SigningKeyID string `yaml:"signing_key_id,omitempty"`
 }
 
-// Document is a parsed Skills Document: a structured envelope plus the
+// Document is a parsed envelope document: a structured envelope plus the
 // type-specific extra fields and the raw Markdown body.
 type Document struct {
 	Envelope `yaml:",inline"`

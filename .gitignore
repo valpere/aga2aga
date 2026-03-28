@@ -36,12 +36,14 @@ go.work.sum
 .vscode/
 
 # Root-level binaries produced by accidental `go build ./...` in repo root
-aga
-aga2aga
-aga2aga-admin
-aga2aga-gateway
-gateway
-admin
+/aga
+/aga2aga
+/aga2aga-enveloper
+/aga2aga-admin
+/aga2aga-gateway
+/enveloper
+/gateway
+/admin
 
 # Compiled binaries directory (produced by `make build`)
 bin/

@@ -156,7 +156,7 @@ Fetches the next task from the agent's dedicated task stream (`agent.tasks.<agen
 | Field | Description |
 |-------|-------------|
 | `task_id` | Opaque token. Pass it unchanged to `complete_task` or `fail_task`. Do not parse or modify it. |
-| `body` | The task instructions in plain Markdown (the body section of a Skills Document). |
+| `body` | The task instructions in plain Markdown (the body section of a envelope document). |
 
 **Output (no task available):**
 
@@ -400,7 +400,7 @@ The same ID must be used for:
 
 ## Task Body Format
 
-The `body` field returned by `get_task` is the human-readable section of a Skills Document — plain Markdown with no YAML header. Treat it as the task instructions.
+The `body` field returned by `get_task` is the human-readable section of a envelope document — plain Markdown with no YAML header. Treat it as the task instructions.
 
 Example body:
 
@@ -416,7 +416,7 @@ Alice: We agreed to ship by Friday...
 Bob: The DB migration needs to run first...
 ```
 
-Your `result` (in `complete_task`) or `error` (in `fail_task`) should also be plain Markdown or plain text — no YAML header required. The gateway wraps it in a `task.result` or `task.fail` Skills Document automatically.
+Your `result` (in `complete_task`) or `error` (in `fail_task`) should also be plain Markdown or plain text — no YAML header required. The gateway wraps it in a `task.result` or `task.fail` envelope document automatically.
 
 ---
 

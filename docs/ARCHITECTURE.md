@@ -4,7 +4,7 @@
 
 Closed AI agents — Claude Code, Codex CLI, Gemini CLI — have no SDK hooks. You cannot embed a Go library into a process you do not control. What all of them already speak natively is the Model Context Protocol (MCP): a standard JSON-RPC interface that agents use to call tools. The aga2aga gateway exploits this: it exposes a small set of MCP tools that the agents already understand, and translates between MCP calls and a Redis Streams–based orchestration bus internally.
 
-The wire format is the Skills Document: a Markdown file with a YAML control header. The YAML header is machine-parsed; the Markdown body is forwarded to the agent verbatim. This keeps the protocol human-readable while remaining machine-actionable.
+The wire format is the envelope document: a Markdown file with a YAML control header. The YAML header is machine-parsed; the Markdown body is forwarded to the agent verbatim. This keeps the protocol human-readable while remaining machine-actionable.
 
 ## Data Flow
 
@@ -52,7 +52,7 @@ Dependencies flow strictly downward. No package imports a layer above it.
   internal/gateway     -- MCP Gateway implementation (imports all pkg/)
        ^
   cmd/gateway          -- MCP Gateway binary (imports internal/gateway)
-  cmd/aga2aga              -- CLI tool (imports pkg/document, pkg/protocol)
+  cmd/enveloper              -- CLI tool (imports pkg/document, pkg/protocol)
 ```
 
 Clean Architecture rule: `pkg/` packages never import `internal/` or `cmd/`. `cmd/` packages are thin entry points only.
@@ -116,7 +116,7 @@ The `registry` map is unexported. Callers use `Lookup(mt)` (returns a copy of `T
 
 `github.com/valpere/aga2aga/pkg/document`
 
-The Skills Document engine: the most substantial package in Phase 1.
+The envelope document engine: the most substantial package in Phase 1.
 
 ### Wire Types
 
@@ -227,15 +227,15 @@ rolled_back  (terminal — reachable from candidate)
 
 `GenomePatch` contains only the mutable subset of genome fields — `DO_NOT_TOUCH` fields (`id`, `lineage`, `genome_version`, `created_at`, `kind`) are structurally absent, preventing patch-apply from overwriting immutable fields.
 
-## cmd/aga2aga
+## cmd/enveloper
 
-`github.com/valpere/aga2aga/cmd/aga2aga`
+`github.com/valpere/aga2aga/cmd/enveloper`
 
 CLI tool built with cobra. Three subcommands:
 
-- `aga2aga validate <file> [--strict]` — runs all 3 validation layers; `--strict` promotes semantic warnings to fatal errors.
-- `aga2aga create <type> [flags]` — builds any registered message type via fluent builder flags and writes to stdout or `--out`.
-- `aga2aga inspect <file> [--format text|json]` — prints envelope fields; JSON output nests `Extra` under `"extra"` to prevent key shadowing.
+- `aga2aga-enveloper validate <file> [--strict]` — runs all 3 validation layers; `--strict` promotes semantic warnings to fatal errors.
+- `aga2aga-enveloper create <type> [flags]` — builds any registered message type via fluent builder flags and writes to stdout or `--out`.
+- `aga2aga-enveloper inspect <file> [--format text|json]` — prints envelope fields; JSON output nests `Extra` under `"extra"` to prevent key shadowing.
 
 `readAndParseFile(path)` is the shared helper that resolves symlinks (`filepath.EvalSymlinks`), enforces the size limit, and calls `document.Parse`.
 

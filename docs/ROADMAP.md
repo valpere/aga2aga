@@ -4,9 +4,9 @@ aga2aga is being built in five phases, each independently deployable and testabl
 
 ---
 
-## Phase 1: Skills Document Engine (complete)
+## Phase 1: envelope document engine (complete)
 
-Goal: parse, validate, and create all 24 Skills Document message types.
+Goal: parse, validate, and create all 24 envelope document message types.
 
 - [x] `pkg/protocol` — 24 `MessageType` constants, immutable type registry, `TypeMeta`
 - [x] `pkg/document` — `Document`, `Envelope`, `StringOrList` wire types
@@ -16,7 +16,7 @@ Goal: parse, validate, and create all 24 Skills Document message types.
 - [x] `pkg/document` — Fluent `Builder` with sticky-error guard and full validation on `Build()`
 - [x] `pkg/document` — Lifecycle state machine: 11 states, `ValidTransition`, `AllowedTransitions`
 - [x] `pkg/document` — Typed structs for all 24 message types (task, genome, lifecycle, spawn, evaluation)
-- [x] `cmd/aga2aga` — `aga2aga validate`, `aga2aga create`, `aga2aga inspect` CLI tool
+- [x] `cmd/enveloper` — `aga2aga-enveloper validate`, `aga2aga-enveloper create`, `aga2aga-enveloper inspect` CLI tool
 - [x] Stub interfaces for future phases: `pkg/transport`, `pkg/identity`, `pkg/negotiation`
 - [x] CI pipeline: golangci-lint v2, coverage reporting, go mod tidy drift check
 - [x] 100+ tests, all green
@@ -79,7 +79,7 @@ Design references: `../context/preparation/01-part/04-agent-to-agent_negotiation
 
 ## Phase 5: Gossip P2P + Offline-First
 
-Goal: eliminate Redis as a hard dependency. Agents can form a swarm and exchange Skills Documents directly via gossip, with no centralized broker.
+Goal: eliminate Redis as a hard dependency. Agents can form a swarm and exchange envelope documents directly via gossip, with no centralized broker.
 
 Planned deliverables:
 

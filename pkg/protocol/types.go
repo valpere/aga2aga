@@ -1,5 +1,5 @@
 // Package protocol defines the canonical message types, constants, and registry
-// for the aga2aga Skills Document protocol.
+// for the aga2aga envelope protocol.
 package protocol
 
 // ProtocolVersion is the wire protocol version. DO_NOT_TOUCH.

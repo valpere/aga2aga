@@ -22,7 +22,7 @@ gofmt -w .           # format code
 ## Tech Stack
 
 - **Transport:** Redis Streams (Phase 1–2), Gossip P2P (Phase 5)
-- **Protocol:** Markdown + YAML Skills Documents
+- **Protocol:** Markdown + YAML envelope documents
 - **Identity/Crypto:** Ed25519 signatures
 - **Schema validation:** JSON Schema 2020-12
 - **CI:** GitHub Actions — golangci-lint **v2.11.4** (local machine has v1; do not use local lint to validate config); step order: go mod tidy → Build → Test → Upload coverage (7-day artifact) → Vet → Lint; no secrets under `pull_request` trigger
@@ -55,7 +55,7 @@ Transport is pluggable: Redis → Gossip P2P → fully offline. Each layer is op
 | `send_message`    | `XADD` to `agent.messages.<recipient>`                |
 | `receive_message` | `XREADGROUP` from `agent.messages.<agent>` + `XACK`   |
 
-### Skills Document Protocol
+### Envelope Document Protocol
 
 All inter-agent messages are **Markdown documents with a YAML control header**:
 
@@ -100,10 +100,10 @@ Fitness is a weighted score (quality 35%, safety 15%, reliability 20%, latency 1
 ### Package Structure
 
 ```
-cmd/aga2aga/      CLI tool (aga2aga validate/create/inspect)  ← DONE (issue #21)
+cmd/enveloper/      CLI tool (aga2aga-enveloper validate/create/inspect)  ← DONE (issue #21)
 cmd/admin/        Web admin UI binary (aga2aga-admin)         ← DONE (issue #86)
 cmd/gateway/      MCP Gateway binary                          ← DONE (issue #92)
-pkg/document/     Skills Document parser, validator, builder  ← DONE (Phase 1)
+pkg/document/     envelope document parser, validator, builder  ← DONE (Phase 1)
 pkg/protocol/     Message types and registry                  ← DONE (issue #15)
 pkg/transport/    Transport abstraction (Redis, Gossip)       (stub)
 pkg/identity/     Ed25519 identity and trust                  (stub)
@@ -172,11 +172,11 @@ docs/             All project documentation
 - `pkg/identity` — `Identity` struct (`Pseudonym`, `PublicKey ed25519.PublicKey`); `Signer` interface: `Sign`, `Verify(data, sig []byte) (bool, error)` (error-aware for config faults, CWE-252)
 - `pkg/negotiation` — `NegotiationState` type; 8 constants derived from `pkg/protocol` (no drift); `NegotiationTransition` stub (always false, NOT for gate use before Phase 4)
 
-#### Implemented: cmd/aga2aga
+#### Implemented: cmd/enveloper
 
-- `aga2aga validate <file>` — 3-layer validation; `--strict` flag
-- `aga2aga create <type>` — build any registered message type via `--id/--from/--to/--exec-id/--field/--out`
-- `aga2aga inspect <file>` — print envelope fields; `--format text|json`; JSON output nests `Extra` under `"extra"` key
+- `aga2aga-enveloper validate <file>` — 3-layer validation; `--strict` flag
+- `aga2aga-enveloper create <type>` — build any registered message type via `--id/--from/--to/--exec-id/--field/--out`
+- `aga2aga-enveloper inspect <file>` — print envelope fields; `--format text|json`; JSON output nests `Extra` under `"extra"` key
 - `readAndParseFile` helper (`helpers.go`) — shared open/size-check/parse; `ErrDocumentTooLarge` sentinel for `errors.Is` testing; `filepath.EvalSymlinks` guard (CWE-22/61); path is CLI-only (SECURITY godoc)
 
 #### Security invariants (pkg/document)
@@ -246,5 +246,5 @@ All Go code in this repo follows strict TDD. Write the failing test first, watch
 
 The following repos are pre-authorized for reading and serve as design references:
 
-- `/home/val/wrk/projects/aga2aga/context/preparation/` — design docs covering MCP integration patterns, the Skills Document protocol, Agent Evolution Protocol spec, gossip/consensus layers, ZK identity, and P2P trust graph
+- `/home/val/wrk/projects/aga2aga/context/preparation/` — design docs covering MCP integration patterns, the envelope protocol, Agent Evolution Protocol spec, gossip/consensus layers, ZK identity, and P2P trust graph
 - `/home/val/wrk/github repos/0sel` — skill/agent reference implementations (superpowers, fullstack-skills, mcp-server-dev)

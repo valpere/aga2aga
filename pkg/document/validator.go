@@ -33,7 +33,7 @@ func (e ValidationError) Error() string {
 	return fmt.Sprintf("[%s] %s", e.Layer, e.Message)
 }
 
-// Validator performs 3-layer validation of Skills Documents.
+// Validator performs 3-layer validation of envelope documents.
 // Construct with NewValidator — zero value is not usable.
 // A Validator is safe for concurrent use after construction.
 type Validator struct {

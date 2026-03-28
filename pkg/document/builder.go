@@ -8,7 +8,7 @@ import (
 	"github.com/valpere/aga2aga/pkg/protocol"
 )
 
-// Builder constructs a Skills Document via a fluent method chain.
+// Builder constructs an envelope document via a fluent method chain.
 // Builder is NOT thread-safe — do not share across goroutines.
 // Call Build() to obtain a validated *Document.
 type Builder struct {

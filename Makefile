@@ -11,7 +11,7 @@ help:
 ## build: compile all packages and produce binaries in bin/
 build:
 	@mkdir -p bin
-	go build -o bin/aga2aga         ./cmd/aga2aga/
+	go build -o bin/aga2aga-enveloper ./cmd/enveloper/
 	go build -o bin/aga2aga-admin   ./cmd/admin/
 	go build -o bin/aga2aga-gateway ./cmd/gateway/
 
@@ -34,11 +34,11 @@ lint:
 		{ echo "golangci-lint not installed — see https://golangci-lint.run/usage/install/"; exit 1; }
 	golangci-lint run
 
-## validate: validate test fixtures with the aga2aga CLI
+## validate: validate test fixtures with the aga2aga-enveloper CLI
 validate:
 	@files=$$(find tests/testdata -maxdepth 1 -name '*.md' 2>/dev/null); \
 	if [ -n "$$files" ]; then \
-		echo "$$files" | xargs go run ./cmd/aga2aga validate; \
+		echo "$$files" | xargs go run ./cmd/enveloper validate; \
 	else \
 		echo "No fixtures found in tests/testdata/ — skipping"; \
 	fi

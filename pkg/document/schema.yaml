@@ -1,11 +1,11 @@
-# aga2aga Skills Document Protocol — JSON Schema 2020-12
+# aga2aga Envelope Protocol — JSON Schema 2020-12
 #
 # DO_NOT_TOUCH: $defs names must not change after merge — they are referenced by
 # pkg/protocol/registry.go SchemaRef values and pkg/document/validator.go.
 # Adding new $defs is safe; renaming or removing existing ones breaks validation.
 $schema: "https://json-schema.org/draft/2020-12/schema"
 $id: "aga2aga://schema"
-description: "aga2aga Skills Document Protocol schema for agent evolution message types"
+description: "aga2aga Envelope Protocol schema for agent evolution message types"
 type: object
 
 $defs:

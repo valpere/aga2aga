@@ -453,7 +453,7 @@ Every issue should have one label from each relevant group.
 | Label | Phase |
 |-------|-------|
 | `phase: 0 bootstrap` | Go module, CI, Dockerfile, tooling |
-| `phase: 1 document` | Skills Document engine |
+| `phase: 1 document` | envelope document engine |
 | `phase: 2 gateway` | MCP Gateway + Redis transport |
 | `phase: 3 identity` | Ed25519 identity + trust graph |
 | `phase: 4 negotiation` | Negotiation protocol |
@@ -503,7 +503,7 @@ Skills are invoked with the `Skill` tool, not by reading skill files.
 | `superpowers:test-driven-development` | Any time you're writing Go code |
 | `superpowers:systematic-debugging` | A bug has resisted 2+ fix attempts |
 | `mcp-server-dev:build-mcp-server` | Phase 2 — building the MCP Gateway |
-| `aga2aga-protocol` | Working with Skills Documents, message types, lifecycle |
+| `aga2aga-protocol` | Working with envelope documents, message types, lifecycle |
 | `go-tdd` | Go-specific TDD conventions |
 | `go-code-reviewer` | Reviewing Go code with protocol compliance |
 
