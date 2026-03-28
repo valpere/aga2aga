@@ -13,7 +13,7 @@ func newValidateCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "validate <file>",
-		Short: "Validate a Skills Document (all 3 layers)",
+		Short: "Validate an envelope document (all 3 layers)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]

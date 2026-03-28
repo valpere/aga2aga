@@ -31,7 +31,7 @@ phases:
       - Makefile
 
   phase-1-document:
-    description: "Skills Document engine — parse, validate, create all message types"
+    description: "Document engine — parse, validate, create all envelope document message types"
     milestone: "M1: First Document"
     due: "2026-04-06"
     depends_on:
@@ -44,7 +44,7 @@ phases:
       - "#18: pkg/document/lifecycle.go"
       - "#19: pkg/document/validator.go + schema"
       - "#20: pkg/document/builder.go"
-      - "#21: cmd/aga2aga/ CLI"
+      - "#21: cmd/enveloper/ CLI (aga2aga-enveloper)"
       - "#22: transport/identity/negotiation stubs"
     skills:
       - aga2aga-protocol
@@ -55,14 +55,14 @@ phases:
     commands:
       - go test ./pkg/document/...
       - go test ./pkg/protocol/...
-      - go run ./cmd/aga2aga validate tests/testdata/valid_genome.md
+      - go run ./cmd/enveloper validate tests/testdata/valid_genome.md
     components:
       - pkg/protocol/
       - pkg/document/
       - pkg/transport/      # stub interface only
       - pkg/identity/       # stub interface only
       - pkg/negotiation/    # stub types only
-      - cmd/aga2aga/
+      - cmd/enveloper/
       - tests/testdata/
 
   phase-2-gateway:

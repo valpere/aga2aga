@@ -1,6 +1,6 @@
 # API Reference
 
-Full reference for all exported APIs in aga2aga. Phase 1 (Skills Document Engine) and Phase 2 (MCP Gateway + Redis Transport + Admin) are complete. Stub packages are described with their interface definitions; concrete implementations are Phase 3-5 deliverables.
+Full reference for all exported APIs in aga2aga. Phase 1 (envelope document engine) and Phase 2 (MCP Gateway + Redis Transport + Admin) are complete. Stub packages are described with their interface definitions; concrete implementations are Phase 3-5 deliverables.
 
 ---
 
@@ -109,7 +109,7 @@ Returns the two base envelope fields that are required for every message type: `
 
 `github.com/valpere/aga2aga/pkg/document`
 
-The Skills Document engine. Imports `pkg/protocol`. Has no imports from `internal/` or `cmd/`.
+The envelope document engine. Imports `pkg/protocol`. Has no imports from `internal/` or `cmd/`.
 
 ### Wire Types
 
@@ -163,7 +163,7 @@ type Document struct {
 }
 ```
 
-The in-memory representation of a parsed Skills Document.
+The in-memory representation of a parsed envelope document.
 
 **Security:** `Extra` contains all YAML fields not defined in `Envelope`. It is unvalidated and must be treated as attacker-controlled on any network-facing path. Never use `Extra` directly for auth, signing, lifecycle state transitions, or routing decisions — always use `As[T]`.
 
@@ -213,7 +213,7 @@ Splits a `---`-delimited YAML front matter block from the Markdown body. Returns
 func Parse(raw []byte) (*Document, error)
 ```
 
-Parses a raw Skills Document byte slice into a `*Document`. Enforces the 64 KiB size limit. Splits the YAML front matter, unmarshals the envelope, and stores all remaining YAML fields in `Extra`.
+Parses a raw envelope document byte slice into a `*Document`. Enforces the 64 KiB size limit. Splits the YAML front matter, unmarshals the envelope, and stores all remaining YAML fields in `Extra`.
 
 Returns a non-nil error if the document exceeds `MaxDocumentBytes`, is missing required delimiters, or has malformed YAML.
 
@@ -303,7 +303,7 @@ Current semantic rules:
 - **Promotion / Rollback:** validates `from_status → to_status` against the lifecycle transition table; denies `from == target_agent` (self-promotion/rollback is forbidden).
 - **Quarantine / Retirement:** validates `from_status → to_status` when `from_status` is present on the wire; always denies `from == target_agent`.
 
-Returns `LayerSemantic` errors. In `--strict` mode (`aga2aga validate --strict`), semantic errors are treated as fatal.
+Returns `LayerSemantic` errors. In `--strict` mode (`aga2aga-enveloper validate --strict`), semantic errors are treated as fatal.
 
 #### func (*Validator) Validate
 
@@ -547,7 +547,7 @@ type EvaluationResult struct {
 
 ```go
 type Delivery struct {
-    Doc      *document.Document // parsed Skills Document — read-only after delivery
+    Doc      *document.Document // parsed envelope document — read-only after delivery
     MsgID    string             // opaque transport-layer token; use only for Ack calls
     RecvedAt time.Time          // wall-clock receive time; for monitoring, not business logic
 }
@@ -607,7 +607,7 @@ Creates a transport bound to the given Redis client. `groupID` is the consumer g
 func (t *RedisTransport) Publish(ctx context.Context, topic string, doc *document.Document) error
 ```
 
-Serializes `doc` to Skills Document wire format and appends it to the Redis stream named `topic` via `XADD`.
+Serializes `doc` to envelope document wire format and appends it to the Redis stream named `topic` via `XADD`.
 
 #### func (*RedisTransport) Subscribe
 
@@ -885,16 +885,16 @@ aga2aga-gateway [flags]
 
 ---
 
-## cmd/aga2aga
+## cmd/enveloper
 
-`github.com/valpere/aga2aga/cmd/aga2aga`
+`github.com/valpere/aga2aga/cmd/enveloper`
 
 CLI tool built with cobra. Three subcommands.
 
-### aga2aga validate
+### aga2aga-enveloper validate
 
 ```
-aga2aga validate <file> [--strict]
+aga2aga-enveloper validate <file> [--strict]
 ```
 
 Runs all 3 validation layers against `<file>`. Prints each `ValidationError` with its layer and field. Exits zero on success.
@@ -904,18 +904,18 @@ Runs all 3 validation layers against `<file>`. Prints each `ValidationError` wit
 | `--strict` | false | Treat semantic warnings as fatal errors |
 
 ```bash
-aga2aga validate tests/testdata/valid_genome.md
+aga2aga-enveloper validate tests/testdata/valid_genome.md
 # valid_genome.md: OK
 
-aga2aga validate --strict tests/testdata/invalid_doc.md
+aga2aga-enveloper validate --strict tests/testdata/invalid_doc.md
 # invalid_doc.md: [structural] type: required field missing
 # exit 1
 ```
 
-### aga2aga create
+### aga2aga-enveloper create
 
 ```
-aga2aga create <type> [flags]
+aga2aga-enveloper create <type> [flags]
 ```
 
 Builds a document of the given message type via the fluent `Builder` and writes it to stdout or `--out`.
@@ -932,23 +932,23 @@ Builds a document of the given message type via the fluent `Builder` and writes 
 | `--out <file>` | Write to file instead of stdout |
 
 ```bash
-aga2aga create task.request \
+aga2aga-enveloper create task.request \
   --from orchestrator \
   --to agent-alpha \
   --exec-id exec-001 \
   --field "task=Analyze the dependency graph"
 
-aga2aga create agent.genome \
+aga2aga-enveloper create agent.genome \
   --from meta-evolver \
   --field "kind=worker" \
   --field "version=1" \
   --out genome.md
 ```
 
-### aga2aga inspect
+### aga2aga-enveloper inspect
 
 ```
-aga2aga inspect <file> [--format text|json]
+aga2aga-enveloper inspect <file> [--format text|json]
 ```
 
 Prints envelope fields from `<file>`.
@@ -958,14 +958,14 @@ Prints envelope fields from `<file>`.
 | `--format` | `text` | Output format: `text` or `json` |
 
 ```bash
-aga2aga inspect genome.md
+aga2aga-enveloper inspect genome.md
 # type:     agent.genome
 # id:       01HN7K2P3Q4R5S6T7U8V9W0X1Y
 # version:  v1
 # from:     meta-evolver
 # created:  2024-01-15T10:30:00Z
 
-aga2aga inspect genome.md --format json
+aga2aga-enveloper inspect genome.md --format json
 # {
 #   "type": "agent.genome",
 #   "id": "...",

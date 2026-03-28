@@ -22,12 +22,12 @@ func newCreateCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "create <type>",
-		Short: "Create a Skills Document of the given message type",
+		Short: "Create an envelope document of the given message type",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			msgType := protocol.MessageType(args[0])
 			if _, ok := protocol.Lookup(msgType); !ok {
-				return fmt.Errorf("unknown message type %q; registered types: use 'aga2aga create --help'", msgType)
+				return fmt.Errorf("unknown message type %q; registered types: use 'aga2aga-enveloper create --help'", msgType)
 			}
 
 			b := document.NewBuilder(msgType)

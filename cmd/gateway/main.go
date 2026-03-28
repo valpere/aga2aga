@@ -143,7 +143,7 @@ func mustEnforcer(mode, adminDB, adminURL, adminAPIKey string) (gateway.PolicyEn
 	switch mode {
 	case "embedded":
 		// SECURITY: resolve symlinks so the opened file is the real path.
-		// Consistent with the guard in cmd/aga2aga/helpers.go (CWE-22/61).
+		// Consistent with the guard in cmd/enveloper/helpers.go (CWE-22/61).
 		resolvedDB, err := filepath.EvalSymlinks(adminDB)
 		if err != nil {
 			log.Fatalf("resolve admin-db path: %v", err)

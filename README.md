@@ -4,7 +4,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/valpere/aga2aga.svg)](https://pkg.go.dev/github.com/valpere/aga2aga)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-An MCP Gateway that bridges closed AI agents — Claude Code, Codex CLI, Gemini CLI — to a Redis Streams-based orchestration bus using the Skills Document protocol.
+An MCP Gateway that bridges closed AI agents — Claude Code, Codex CLI, Gemini CLI — to a Redis Streams-based orchestration bus using the envelope protocol.
 
 ## The Problem
 
@@ -40,7 +40,7 @@ The gateway maps four MCP tools to Redis operations:
 | `fail_task`     | `XADD` to `agent.events.failed`               |
 | `heartbeat`     | health check only                             |
 
-### Skills Document Format
+### Envelope Document Format
 
 All inter-agent messages are Markdown files with a YAML control header. The YAML is machine-parsed; the Markdown body goes to the agent verbatim:
 
@@ -64,13 +64,13 @@ validates the error return value.
 
 ## Current Status
 
-Phase 1 (Skills Document Engine) is complete. Phases 2-5 are planned.
+Phase 1 (envelope document engine) is complete. Phases 2-5 are planned.
 
 | Component | Status | Phase |
 |-----------|--------|-------|
 | `pkg/protocol` — 24 message type constants + registry | complete | 1 |
 | `pkg/document` — parser, validator, builder, lifecycle | complete | 1 |
-| `cmd/aga2aga` — validate / create / inspect CLI | complete | 1 |
+| `cmd/enveloper` — validate / create / inspect CLI | complete | 1 |
 | `pkg/transport` — Transport interface stub | stub | 1 |
 | `pkg/identity` — Identity + Signer interface stub | stub | 1 |
 | `pkg/negotiation` — NegotiationState stub | stub | 1 |
@@ -96,16 +96,16 @@ go test ./...
 Install the `aga2aga` CLI:
 
 ```bash
-go install github.com/valpere/aga2aga/cmd/aga2aga@latest
+go install github.com/valpere/aga2aga/cmd/enveloper@latest
 ```
 
 ### Validate a document
 
 ```bash
-aga2aga validate path/to/document.md
+aga2aga-enveloper validate path/to/document.md
 # valid_genome.md: OK
 
-aga2aga validate --strict path/to/document.md
+aga2aga-enveloper validate --strict path/to/document.md
 # --strict promotes semantic warnings to fatal errors
 ```
 
@@ -113,7 +113,7 @@ aga2aga validate --strict path/to/document.md
 
 ```bash
 # Create a task request
-aga2aga create task.request \
+aga2aga-enveloper create task.request \
   --from orchestrator \
   --to agent-alpha \
   --exec-id exec-001 \
@@ -121,7 +121,7 @@ aga2aga create task.request \
   --out task.md
 
 # Create an agent genome
-aga2aga create agent.genome \
+aga2aga-enveloper create agent.genome \
   --from meta-evolver \
   --field "kind=worker" \
   --field "version=1" \
@@ -131,23 +131,23 @@ aga2aga create agent.genome \
 ### Inspect a document
 
 ```bash
-aga2aga inspect genome.md
+aga2aga-enveloper inspect genome.md
 # type:     agent.genome
 # id:       01HN7K2P3Q4R5S6T7U8V9W0X1Y
 # from:     meta-evolver
 # version:  v1
 # created:  2024-01-15T10:30:00Z
 
-aga2aga inspect genome.md --format json
+aga2aga-enveloper inspect genome.md --format json
 ```
 
 ## Package Structure
 
 ```
 cmd/gateway/      MCP Gateway binary (Phase 2)
-cmd/aga2aga/          CLI tool: validate, create, inspect
+cmd/enveloper/          CLI tool: validate, create, inspect
 
-pkg/document/     Skills Document engine (Phase 1, complete)
+pkg/document/     envelope document engine (Phase 1, complete)
                     - Parse, Serialize, SplitFrontMatter
                     - 3-layer Validator (structural / JSON Schema / semantic)
                     - Fluent Builder with sticky-error guard

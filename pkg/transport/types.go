@@ -13,7 +13,7 @@ import (
 // calling Ack — callers MUST NOT derive it from document content or
 // Document.Extra, which is attacker-controlled.
 type Delivery struct {
-	Doc      *document.Document // parsed Skills Document — read-only after delivery
+	Doc      *document.Document // parsed envelope document — read-only after delivery
 	MsgID    string             // opaque transport-layer token; use only for Ack calls
 	RecvedAt time.Time          // wall-clock receive time; for monitoring, not business logic
 }

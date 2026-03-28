@@ -25,7 +25,7 @@ The project is in pre-release (Phase 1). Only the `main` branch is supported.
 
 There is no cryptographic authentication in Phase 1. All `Envelope.From` values are self-reported strings. No agent has a verified identity. The MCP Gateway (`cmd/gateway`) is a Phase 2 deliverable and is currently a stub.
 
-The only software boundary in Phase 1 is the operator running `cmd/aga2aga` locally against files they control.
+The only software boundary in Phase 1 is the operator running `cmd/enveloper` locally against files they control.
 
 ### Phase 3 (planned)
 

@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// MaxDocumentBytes is the hard upper limit on raw Skills Document size accepted
+// MaxDocumentBytes is the hard upper limit on raw envelope document size accepted
 // by Parse. It guards against memory-exhaustion attacks (e.g., YAML anchor
 // amplification / "billion laughs").
 //
@@ -42,7 +42,7 @@ func findClosingDelimiter(content []byte) int {
 	}
 }
 
-// SplitFrontMatter splits a Skills Document into its YAML front matter bytes
+// SplitFrontMatter splits an envelope document into its YAML front matter bytes
 // and Markdown body string. The document must begin with a bare "---" delimiter
 // line (exactly "---", not "---foo"). Returns an error if no opening or closing
 // bare delimiter is found.
@@ -76,7 +76,7 @@ func SplitFrontMatter(raw []byte) (yamlBytes []byte, body string, err error) {
 	return yamlBytes, body, nil
 }
 
-// Parse splits the raw Skills Document bytes into front matter and body,
+// Parse splits the raw envelope document bytes into front matter and body,
 // then unmarshals the YAML into a Document. The original bytes are stored
 // in doc.Raw without modification.
 // Returns an error if raw exceeds MaxDocumentBytes.
@@ -114,7 +114,7 @@ func ParseAs[T any](raw []byte) (*T, error) {
 	return As[T](doc)
 }
 
-// Serialize reconstructs the canonical Skills Document wire format from doc:
+// Serialize reconstructs the canonical envelope document wire format from doc:
 //
 //	---
 //	<yaml front matter>
