@@ -79,7 +79,7 @@ Defines the canonical message type constants and the immutable type registry. No
 
 ### MessageType Constants
 
-24 types across three groups:
+24 types across four groups:
 
 **Agent Evolution (11):**
 
@@ -97,7 +97,13 @@ Defines the canonical message type constants and the immutable type registry. No
 | `AgentQuarantine`      | `agent.quarantine`            |
 | `AgentRecombineProposal` | `agent.recombine.proposal`  |
 
-**Task (5):**
+**Agent Message (1):** fire-and-forget peer-to-peer; no outcome required.
+
+| Constant       | Wire value      |
+|----------------|-----------------|
+| `AgentMessage` | `agent.message` |
+
+**Task (4):** request-response work units; outcome required via `task.result` or `task.fail`.
 
 | Constant       | Wire value         |
 |----------------|--------------------|
@@ -105,7 +111,6 @@ Defines the canonical message type constants and the immutable type registry. No
 | `TaskResult`   | `task.result`      |
 | `TaskFail`     | `task.fail`        |
 | `TaskProgress` | `task.progress`    |
-| `AgentMessage` | `agent.message`    |
 
 **Negotiation (8):**
 
