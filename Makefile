@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help build test test-integration lint validate docker docker-admin docker-images up down ps logs tidy
+.PHONY: help build clean test test-integration lint validate docker docker-admin docker-images up down ps logs tidy
 
 ## help: print this help message
 help:
@@ -8,9 +8,16 @@ help:
 	@echo ""
 	@sed -n 's/^## //p' $(MAKEFILE_LIST) | column -t -s ':' | sed -e 's/^/  /'
 
-## build: compile all packages
+## build: compile all packages and produce binaries in bin/
 build:
-	go build ./...
+	@mkdir -p bin
+	go build -o bin/aga2aga         ./cmd/aga2aga/
+	go build -o bin/aga2aga-admin   ./cmd/admin/
+	go build -o bin/aga2aga-gateway ./cmd/gateway/
+
+## clean: remove compiled binaries
+clean:
+	rm -rf bin/
 
 ## test: run all tests
 test:
