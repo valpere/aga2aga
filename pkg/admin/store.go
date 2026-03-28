@@ -45,6 +45,9 @@ type AuditStore interface {
 type APIKeyStore interface {
 	CreateAPIKey(ctx context.Context, k *APIKey) error
 	GetAPIKeyByHash(ctx context.Context, hash string) (*APIKey, error)
+	// GetAPIKeyByAgentID returns the active API key bound to agentID within
+	// orgID, or an error if none is found. Revoked keys are excluded.
+	GetAPIKeyByAgentID(ctx context.Context, orgID, agentID string) (*APIKey, error)
 	ListAPIKeys(ctx context.Context, orgID string) ([]APIKey, error)
 	// RevokeAPIKey marks the key as revoked. orgID is required so that a caller
 	// cannot revoke keys belonging to a different organization (CWE-639).

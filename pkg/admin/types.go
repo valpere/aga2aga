@@ -12,6 +12,7 @@ const (
 	RoleAdmin    Role = "admin"    // full access: users, agents, policies, org settings
 	RoleOperator Role = "operator" // register/suspend agents; create/edit policies
 	RoleViewer   Role = "viewer"   // read-only
+	RoleAgent    Role = "agent"    // bound to a specific agent ID; used for MCP tool auth
 )
 
 // AgentStatus is the lifecycle state of a RegisteredAgent.
@@ -108,7 +109,8 @@ type APIKey struct {
 	OrgID     string    `db:"org_id"`
 	Name      string    `db:"name"`       // human label
 	KeyHash   string    `db:"key_hash"`   // SHA-256 hex of the raw key
-	Role      Role      `db:"role"`       // operator | viewer (never admin)
+	Role      Role      `db:"role"`       // operator | viewer | agent (never admin)
+	AgentID   string    `db:"agent_id"`   // non-empty when role=agent; the bound agent identity
 	CreatedBy string    `db:"created_by"` // User.ID
 	CreatedAt time.Time `db:"created_at"`
 	RevokedAt time.Time `db:"revoked_at"` // zero = active

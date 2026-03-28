@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/valpere/aga2aga/pkg/admin"
@@ -36,7 +37,8 @@ func NewSQLiteStore(path string) (*SQLiteStore, error) {
 // Close releases the underlying database connection.
 func (s *SQLiteStore) Close() error { return s.db.Close() }
 
-// migrate creates all tables if they do not already exist.
+// migrate creates all tables if they do not already exist and applies
+// incremental schema changes for existing databases.
 func migrate(db *sql.DB) error {
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS organizations (
@@ -83,6 +85,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   name       TEXT NOT NULL,
   key_hash   TEXT NOT NULL UNIQUE,
   role       TEXT NOT NULL,
+  agent_id   TEXT NOT NULL DEFAULT '',
   created_by TEXT NOT NULL REFERENCES users(id),
   created_at DATETIME NOT NULL,
   revoked_at DATETIME NOT NULL DEFAULT ''
@@ -100,7 +103,31 @@ CREATE TABLE IF NOT EXISTS communication_policies (
   created_at DATETIME NOT NULL
 );
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	// Migration: add agent_id column if it was not present in an older schema.
+	// SQLite ignores "IF NOT EXISTS" for columns, but this statement is idempotent
+	// for new databases because the CREATE TABLE above already defines the column.
+	_, err = db.Exec(`ALTER TABLE api_keys ADD COLUMN agent_id TEXT NOT NULL DEFAULT ''`)
+	if err != nil {
+		// SQLite returns "duplicate column name" when the column already exists.
+		// Treat that as a no-op so existing databases migrate cleanly.
+		if !isDuplicateColumnErr(err) {
+			return fmt.Errorf("migrate api_keys.agent_id: %w", err)
+		}
+	}
+	return nil
+}
+
+// isDuplicateColumnErr reports whether the error is a SQLite "duplicate column
+// name" error, which occurs when ALTER TABLE ADD COLUMN is run on a table that
+// already has the column — a normal outcome for idempotent migrations.
+func isDuplicateColumnErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "duplicate column name")
 }
 
 // --- OrgStore ---
@@ -352,9 +379,9 @@ func (s *SQLiteStore) ListAuditEvents(ctx context.Context, orgID string, limit i
 
 func (s *SQLiteStore) CreateAPIKey(ctx context.Context, k *admin.APIKey) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO api_keys(id, org_id, name, key_hash, role, created_by, created_at, revoked_at)
-		 VALUES(?,?,?,?,?,?,?,?)`,
-		k.ID, k.OrgID, k.Name, k.KeyHash, string(k.Role),
+		`INSERT INTO api_keys(id, org_id, name, key_hash, role, agent_id, created_by, created_at, revoked_at)
+		 VALUES(?,?,?,?,?,?,?,?,?)`,
+		k.ID, k.OrgID, k.Name, k.KeyHash, string(k.Role), k.AgentID,
 		k.CreatedBy, k.CreatedAt.Format(time.RFC3339), "",
 	)
 	return err
@@ -365,8 +392,18 @@ func (s *SQLiteStore) CreateAPIKey(ctx context.Context, k *admin.APIKey) error {
 // The gateway auth path (handlers_api.go) performs this check; any new caller must too.
 func (s *SQLiteStore) GetAPIKeyByHash(ctx context.Context, hash string) (*admin.APIKey, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, org_id, name, key_hash, role, created_by, created_at, revoked_at
+		`SELECT id, org_id, name, key_hash, role, agent_id, created_by, created_at, revoked_at
 		 FROM api_keys WHERE key_hash=?`, hash)
+	return scanAPIKey(row)
+}
+
+// GetAPIKeyByAgentID returns the active API key bound to agentID within orgID.
+// Returns an error if no matching active (non-revoked) key is found.
+func (s *SQLiteStore) GetAPIKeyByAgentID(ctx context.Context, orgID, agentID string) (*admin.APIKey, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, org_id, name, key_hash, role, agent_id, created_by, created_at, revoked_at
+		 FROM api_keys WHERE org_id=? AND agent_id=? AND (revoked_at IS NULL OR revoked_at='')
+		 ORDER BY created_at DESC LIMIT 1`, orgID, agentID)
 	return scanAPIKey(row)
 }
 
@@ -375,7 +412,7 @@ func (s *SQLiteStore) GetAPIKeyByHash(ctx context.Context, hash string) (*admin.
 // Use GetAPIKeyByHash to look up any key regardless of revocation status.
 func (s *SQLiteStore) ListAPIKeys(ctx context.Context, orgID string) ([]admin.APIKey, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, org_id, name, key_hash, role, created_by, created_at, revoked_at
+		`SELECT id, org_id, name, key_hash, role, agent_id, created_by, created_at, revoked_at
 		 FROM api_keys WHERE org_id=? AND (revoked_at IS NULL OR revoked_at='')
 		 ORDER BY created_at DESC`, orgID)
 	if err != nil {
@@ -385,12 +422,13 @@ func (s *SQLiteStore) ListAPIKeys(ctx context.Context, orgID string) ([]admin.AP
 	var keys []admin.APIKey
 	for rows.Next() {
 		var k admin.APIKey
-		var role, createdAt, revokedAt string
-		if err := rows.Scan(&k.ID, &k.OrgID, &k.Name, &k.KeyHash, &role,
+		var role, agentID, createdAt, revokedAt string
+		if err := rows.Scan(&k.ID, &k.OrgID, &k.Name, &k.KeyHash, &role, &agentID,
 			&k.CreatedBy, &createdAt, &revokedAt); err != nil {
 			return nil, err
 		}
 		k.Role = admin.Role(role)
+		k.AgentID = agentID
 		k.CreatedAt = parseRFC3339(createdAt)
 		if revokedAt != "" {
 			k.RevokedAt = parseRFC3339(revokedAt)
@@ -423,12 +461,13 @@ func (s *SQLiteStore) RevokeAPIKey(ctx context.Context, orgID, id string) error 
 
 func scanAPIKey(row *sql.Row) (*admin.APIKey, error) {
 	var k admin.APIKey
-	var role, createdAt, revokedAt string
-	if err := row.Scan(&k.ID, &k.OrgID, &k.Name, &k.KeyHash, &role,
+	var role, agentID, createdAt, revokedAt string
+	if err := row.Scan(&k.ID, &k.OrgID, &k.Name, &k.KeyHash, &role, &agentID,
 		&k.CreatedBy, &createdAt, &revokedAt); err != nil {
 		return nil, err
 	}
 	k.Role = admin.Role(role)
+	k.AgentID = agentID
 	k.CreatedAt = parseRFC3339(createdAt)
 	if revokedAt != "" {
 		k.RevokedAt = parseRFC3339(revokedAt)
