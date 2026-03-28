@@ -154,18 +154,22 @@ docs/             All project documentation
   - Bearer token never in error messages (CWE-532)
   - `url.QueryEscape` on source/target params
 - `Config` struct + `DefaultConfig()` — `AgentID`, `TaskReadTimeout` (5s), `PendingTTL` (5m)
-- `Gateway` struct — wires MCP server, Transport, PendingMap, PolicyEnforcer
-- `New(t, e, cfg)` — creates Gateway with 6 MCP tools registered
+- `AgentAuthenticator` interface (#117) — `Authenticate(ctx, rawKey) (agentID, error)` — Phase 2.5 bridge before Ed25519
+  - `EmbeddedAuthenticator` — SHA-256 hash → `GetAPIKeyByHash` → revocation → role check → return AgentID
+  - `HTTPAuthenticator` — `POST /api/v1/auth` with Bearer rawKey; `io.LimitReader(4KiB)` (CWE-400)
+  - `authenticateAgent(ctx, claimedAgent, rawKey)` — wrapper using `subtle.ConstantTimeCompare` (CWE-208); nil auth = legacy mode
+- `Gateway` struct — wires MCP server, Transport, PendingMap, PolicyEnforcer, AgentAuthenticator (nil = legacy)
+- `New(t, e, auth, cfg)` — creates Gateway with 6 MCP tools registered; auth may be nil
 - `Run(ctx, mcpTransport)` — starts PendingMap cleanup, serves MCP over given transport
-- 6 tool handlers:
-  - `get_task`: validates agent ID → policy check → subscribe → wait with timeout → store in PendingMap → return
-  - `complete_task`: validates → policy → body size cap → LoadAndDelete → build task.result → Publish → Ack
+- 6 tool handlers (each calls `authenticateAgent` before any work when auth is set):
+  - `get_task`: validates agent ID → auth → policy check → subscribe → wait with timeout → store in PendingMap → return
+  - `complete_task`: validates → auth → policy → body size cap → LoadAndDelete → build task.result → Publish → Ack
   - `fail_task`: same pattern, publishes to `agent.events.failed`
-  - `heartbeat`: no-op, returns `{status: "ok"}`
-  - `send_message`: validates sender + recipient IDs → policy(sender→recipient) → body size cap → build agent.message → Publish to `agent.messages.<recipient>`
-  - `receive_message`: validates → policy(agent→orchestrator) → subscribe `agent.messages.<agent>` → wait with timeout → Ack immediately → return `{from, body}`
-- Security: agent ID regex `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]$` (CWE-20/CWE-74); `taskID = delivery.MsgID` (transport-layer ID, not attacker-controlled `Doc.ID`); body capped at `MaxDocumentBytes` (CWE-400); `SECURITY(Phase 3):` comments at all `Allowed()` call sites (self-reported agent ID, CWE-287)
-- `cmd/gateway/main.go` (#92): 10 CLI flags; ADMIN_API_KEY env var preferred over flag (CWE-214); LIFO defer — `rdb` deferred first (runs last), `trans` deferred second (runs first); stdio + HTTP transports; `WriteTimeout:0` on http.Server for SSE long-lived streams; graceful shutdown with 10s context; `mustEnforcer` with `filepath.EvalSymlinks` on `--admin-db` (CWE-22/61)
+  - `heartbeat`: auth (requires agent when auth enabled); returns `{status: "ok"}`
+  - `send_message`: validates sender + recipient IDs → auth → policy(sender→recipient) → body size cap → build agent.message → Publish to `agent.messages.<recipient>`
+  - `receive_message`: validates → auth → policy(agent→orchestrator) → subscribe `agent.messages.<agent>` → wait with timeout → Ack immediately → return `{from, body}`
+- Security: agent ID validated via `admin.IsValidAgentID` (canonical regex, CWE-20/CWE-74); `taskID = delivery.MsgID` (transport-layer ID, not attacker-controlled `Doc.ID`); body capped at `MaxDocumentBytes` (CWE-400); `authenticateAgent` uses `subtle.ConstantTimeCompare` for ID match (CWE-208); `export_test.go` pattern for `AuthenticateAgentForTest` (test-only, not compiled in production)
+- `cmd/gateway/main.go` (#92, #117): 11 CLI flags; `--require-agent-key` (default false) wires auth; `mustAuthenticator` returns `(AgentAuthenticator, func())` mirrors `mustEnforcer` pattern; ADMIN_API_KEY env var preferred over flag (CWE-214); LIFO defer; stdio + HTTP transports; `WriteTimeout:0` for SSE; graceful shutdown 10s; `mustEnforcer`+`mustAuthenticator` with `filepath.EvalSymlinks` (CWE-22/61)
 - `PendingMap.StartCleanup` idempotent via `sync.Once` — safe to call from both `Gateway.Run()` (stdio) and `Gateway.StartCleanup()` (HTTP path) without spawning duplicate goroutines
 
 #### Implemented: pkg/transport, pkg/identity, pkg/negotiation (stubs)
