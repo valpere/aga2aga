@@ -46,14 +46,16 @@ Transport is pluggable: Redis → Gossip P2P → fully offline. Each layer is op
 
 ### MCP Tools Exposed
 
-| Tool              | Redis operation                                       |
-| ----------------- | ----------------------------------------------------- |
-| `get_task`        | `XREADGROUP` from `agent.tasks.<agent>`               |
-| `complete_task`   | `XADD` to `agent.events.completed` + `XACK`           |
-| `fail_task`       | `XADD` to `agent.events.failed`                       |
-| `heartbeat`       | health check only                                     |
-| `send_message`    | `XADD` to `agent.messages.<recipient>`                |
-| `receive_message` | `XREADGROUP` from `agent.messages.<agent>` + `XACK`   |
+Agents communicate by exchanging **messages**. A **task** is a specialised message requiring an explicit outcome.
+
+| Tool              | Kind    | Redis operation                                       |
+| ----------------- | ------- | ----------------------------------------------------- |
+| `send_message`    | message | `XADD` to `agent.messages.<recipient>`                |
+| `receive_message` | message | `XREADGROUP` from `agent.messages.<agent>` + `XACK`   |
+| `get_task`        | task    | `XREADGROUP` from `agent.tasks.<agent>`               |
+| `complete_task`   | task    | `XADD` to `agent.events.completed` + `XACK`           |
+| `fail_task`       | task    | `XADD` to `agent.events.failed`                       |
+| `heartbeat`       | utility | health check only                                     |
 
 ### Envelope Document Protocol
 
