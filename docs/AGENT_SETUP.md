@@ -156,7 +156,7 @@ Fetches the next task from the agent's dedicated task stream (`agent.tasks.<agen
 | Field | Description |
 |-------|-------------|
 | `task_id` | Opaque token. Pass it unchanged to `complete_task` or `fail_task`. Do not parse or modify it. |
-| `body` | The task instructions in plain Markdown (the body section of a envelope document). |
+| `body` | The task instructions in plain Markdown (the body section of an envelope document). |
 
 **Output (no task available):**
 
@@ -400,7 +400,7 @@ The same ID must be used for:
 
 ## Task Body Format
 
-The `body` field returned by `get_task` is the human-readable section of a envelope document — plain Markdown with no YAML header. Treat it as the task instructions.
+The `body` field returned by `get_task` is the human-readable section of an envelope document — plain Markdown with no YAML header. Treat it as the task instructions.
 
 Example body:
 
