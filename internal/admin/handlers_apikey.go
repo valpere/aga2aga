@@ -7,11 +7,20 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/valpere/aga2aga/pkg/admin"
 )
+
+// agentIDRE is the same pattern used by the gateway to validate agent identifiers.
+var agentIDRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]$`) //nolint:gochecknoglobals
+
+// isValidAgentID reports whether s satisfies the agent ID rules.
+func isValidAgentID(s string) bool {
+	return agentIDRE.MatchString(s)
+}
 
 type apiKeyListPage struct {
 	Page    string
@@ -38,12 +47,21 @@ func (srv *Server) handleAPIKeyNewPost(w http.ResponseWriter, r *http.Request) {
 	}
 	name := r.FormValue("name")
 	role := admin.Role(r.FormValue("role"))
+	agentID := r.FormValue("agent_id")
 	if name == "" {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if role != admin.RoleOperator && role != admin.RoleViewer {
-		http.Error(w, "role must be operator or viewer", http.StatusBadRequest)
+	switch role {
+	case admin.RoleOperator, admin.RoleViewer:
+		// no additional fields required
+	case admin.RoleAgent:
+		if !isValidAgentID(agentID) {
+			http.Error(w, "role=agent requires a valid agent_id", http.StatusBadRequest)
+			return
+		}
+	default:
+		http.Error(w, "role must be operator, viewer, or agent", http.StatusBadRequest)
 		return
 	}
 
@@ -55,7 +73,7 @@ func (srv *Server) handleAPIKeyNewPost(w http.ResponseWriter, r *http.Request) {
 
 	k := &admin.APIKey{
 		ID: uuid.New().String(), OrgID: sd.OrgID,
-		Name: name, KeyHash: hash, Role: role,
+		Name: name, KeyHash: hash, Role: role, AgentID: agentID,
 		CreatedBy: sd.UserID, CreatedAt: time.Now().UTC(),
 	}
 	if err := srv.store.CreateAPIKey(r.Context(), k); err != nil {
