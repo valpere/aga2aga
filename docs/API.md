@@ -1,6 +1,6 @@
 # API Reference
 
-Full reference for all exported APIs in aga2aga. Phase 1 (Skills Document Engine) is complete. Stub packages are described with their interface definitions; concrete implementations are Phase 2-4 deliverables.
+Full reference for all exported APIs in aga2aga. Phase 1 (Skills Document Engine) and Phase 2 (MCP Gateway + Redis Transport + Admin) are complete. Stub packages are described with their interface definitions; concrete implementations are Phase 3-5 deliverables.
 
 ---
 
@@ -541,30 +541,110 @@ type EvaluationResult struct {
 
 `github.com/valpere/aga2aga/pkg/transport`
 
-**Status: stub — concrete implementations in Phase 2.**
+**Status: interface complete. Concrete Redis implementation in `pkg/transport/redis` (Phase 2 — done). Gossip P2P in Phase 5.**
+
+### type Delivery
+
+```go
+type Delivery struct {
+    Doc      *document.Document // parsed Skills Document — read-only after delivery
+    MsgID    string             // opaque transport-layer token; use only for Ack calls
+    RecvedAt time.Time          // wall-clock receive time; for monitoring, not business logic
+}
+```
+
+Pairs a received document with its transport-layer acknowledgement token. `MsgID` is assigned by the concrete transport on receive (e.g., a Redis Streams entry ID). **SECURITY:** callers MUST use `Delivery.MsgID` for Ack calls — never derive it from document content or `Document.Extra`, which is attacker-controlled (CWE-20).
 
 ### type Transport
 
 ```go
 type Transport interface {
-    // Publish sends doc to topic. ctx controls deadline and cancellation.
+    // Publish sends doc to the named topic.
     Publish(ctx context.Context, topic string, doc *document.Document) error
 
-    // Subscribe returns a channel that delivers documents arriving on topic.
-    // The channel is closed when ctx is cancelled or the connection fails.
-    Subscribe(ctx context.Context, topic string) (<-chan *document.Document, error)
+    // Subscribe returns a channel that yields Deliveries received on topic.
+    // The channel is closed when ctx is cancelled or an unrecoverable error
+    // occurs. Callers must drain the channel promptly to avoid blocking.
+    Subscribe(ctx context.Context, topic string) (<-chan Delivery, error)
 
-    // Ack acknowledges delivery of the message identified by msgID.
-    // msgID is sourced from the pending map maintained by the gateway
-    // (taskID -> msgID), NOT from document content — sourcing msgID from
-    // a document field would allow a malicious document to ACK arbitrary
-    // messages (CWE-20).
-    Ack(ctx context.Context, msgID string) error
+    // Ack acknowledges a specific message on a topic. topic and msgID must
+    // come from a Delivery obtained via Subscribe — never from document
+    // content or Document.Extra, which is attacker-controlled.
+    Ack(ctx context.Context, topic, msgID string) error
 
-    // Close releases all resources held by this transport.
+    // Close shuts down the transport and releases resources.
     Close() error
 }
 ```
+
+---
+
+## pkg/transport/redis
+
+`github.com/valpere/aga2aga/pkg/transport/redis`
+
+**Status: complete (Phase 2).** Implements `transport.Transport` over Redis Streams using `go-redis/v9`. Requires a running Redis instance.
+
+### type RedisTransport
+
+```go
+type RedisTransport struct { /* unexported */ }
+```
+
+Implements `transport.Transport` using Redis Streams with consumer groups.
+
+#### func New
+
+```go
+func New(rdb *redis.Client, groupID string) *RedisTransport
+```
+
+Creates a transport bound to the given Redis client. `groupID` is the consumer group name used for `XREADGROUP` operations. The client must already be connected and reachable.
+
+#### func (*RedisTransport) Publish
+
+```go
+func (t *RedisTransport) Publish(ctx context.Context, topic string, doc *document.Document) error
+```
+
+Serializes `doc` to Skills Document wire format and appends it to the Redis stream named `topic` via `XADD`.
+
+#### func (*RedisTransport) Subscribe
+
+```go
+func (t *RedisTransport) Subscribe(ctx context.Context, topic string) (<-chan transport.Delivery, error)
+```
+
+Subscribes to `topic` using `XREADGROUP`. Delivers one message per call — not a long-running goroutine. The channel is closed after the first delivery or when `ctx` is cancelled.
+
+#### func (*RedisTransport) Ack
+
+```go
+func (t *RedisTransport) Ack(ctx context.Context, topic, msgID string) error
+```
+
+Acknowledges `msgID` on `topic` via `XACK`, removing it from the consumer group's Pending Entry List (PEL).
+
+### type PendingMap
+
+```go
+type PendingMap struct { /* unexported */ }
+```
+
+Thread-safe map from task ID to the transport-layer `(topic, msgID)` pair needed to Ack on task completion or failure.
+
+**SECURITY:** task IDs MUST be transport-layer entry IDs (`Delivery.MsgID`), never `Envelope.ID` or any document field.
+
+```go
+func NewPendingMap() *PendingMap
+func (pm *PendingMap) Store(taskID, topic, msgID string)
+func (pm *PendingMap) Load(taskID string) (topic, msgID string, ok bool)
+func (pm *PendingMap) LoadAndDelete(taskID string) (topic, msgID string, ok bool)
+func (pm *PendingMap) Delete(taskID string)
+func (pm *PendingMap) StartCleanup(ctx context.Context, ttl time.Duration)
+```
+
+`StartCleanup` is idempotent via `sync.Once` — safe to call multiple times.
 
 ---
 
@@ -635,6 +715,173 @@ func NegotiationTransition(from, to NegotiationState) bool
 ```
 
 **STUB:** Always returns false for every input pair. Do NOT use as a gate or guard before Phase 4 implements the real state machine.
+
+---
+
+## pkg/admin
+
+`github.com/valpere/aga2aga/pkg/admin`
+
+**Status: complete (Phase 2).** Domain types, persistence interfaces, and policy evaluation used by both the admin server and the gateway enforcer. Has no imports from `internal/` or `cmd/`.
+
+### Domain types
+
+| Type | Description |
+|------|-------------|
+| `Organization` | Top-level tenant. Owns users, agents, and policies. |
+| `User` | Human operator. Has a `Role` (admin/operator/viewer). Password stored as bcrypt hash. |
+| `RegisteredAgent` | An agent authorized to operate within an org. `AgentID` matches `Envelope.From`. |
+| `CommunicationPolicy` | Permit or deny message flow between two principals. Supports `Wildcard` (`"*"`). Priority-ordered; first match wins; default deny. |
+| `AuditEvent` | Append-only log entry for security-relevant operations. |
+| `APIKey` | Bearer key for machine-to-machine admin API access. `KeyHash` is a SHA-256 hex digest; the raw key is never stored. |
+
+### Persistence interfaces
+
+```go
+type Store interface {
+    OrgStore
+    UserStore
+    AgentStore
+    PolicyStore
+    AuditStore
+    APIKeyStore
+}
+```
+
+Each sub-interface covers CRUD for its domain type. The concrete implementation is `internal/admin.SQLiteStore`.
+
+**Security note (`APIKeyStore`):** `RevokeAPIKey(ctx, orgID, id)` requires `orgID` to prevent cross-org revocations (CWE-639). `ListAPIKeys` excludes revoked keys — callers never see them.
+
+### func Evaluate
+
+```go
+func Evaluate(policies []CommunicationPolicy, source, target string) PolicyAction
+```
+
+Returns `PolicyActionAllow` if any policy in `policies` permits `source → target`; otherwise `PolicyActionDeny`. Evaluation order: sorted by `Priority` descending (highest first). Wildcard matching: `*` matches any principal within the same policy set. Bidirectional policies match both `source → target` and `target → source`.
+
+---
+
+## internal/gateway
+
+`github.com/valpere/aga2aga/internal/gateway`
+
+**Status: complete (Phase 2).** MCP Gateway implementation. Not importable from `pkg/` or `cmd/` (Clean Architecture boundary).
+
+### type PolicyEnforcer
+
+```go
+type PolicyEnforcer interface {
+    Allowed(ctx context.Context, source, target string) (bool, error)
+}
+```
+
+Checks whether `source` may communicate with `target` under the current policy set.
+
+Two implementations ship:
+
+**`EmbeddedEnforcer`** — in-process evaluation via `admin.PolicyStore`. Use for single-node deployments where the gateway and admin share a database.
+
+```go
+func NewEmbeddedEnforcer(store admin.PolicyStore, orgID string) *EmbeddedEnforcer
+```
+
+**`HTTPEnforcer`** — remote evaluation via the admin server's `GET /api/v1/evaluate` endpoint. Use for separate-process deployments.
+
+```go
+func NewHTTPEnforcer(baseURL, token string) (*HTTPEnforcer, error)
+```
+
+`baseURL` must be `http` or `https` with a non-empty host (validated at construction; CWE-918). Responses are capped at 4 KiB (CWE-400). The Bearer token is never included in error messages (CWE-532).
+
+### type Config
+
+```go
+type Config struct {
+    AgentID         string        // gateway identity used in policy checks
+    TaskReadTimeout time.Duration // max wait for get_task / receive_message (default: 5s)
+    PendingTTL      time.Duration // pending task entry TTL (default: 5m)
+}
+
+func DefaultConfig() Config
+```
+
+### type Gateway
+
+```go
+type Gateway struct { /* unexported */ }
+
+func New(t transport.Transport, e PolicyEnforcer, cfg Config) *Gateway
+func (g *Gateway) Run(ctx context.Context, mcpTransport mcpsdk.Transport) error
+func (g *Gateway) Server() *mcpsdk.Server
+func (g *Gateway) StartCleanup(ctx context.Context)
+```
+
+`New` registers all 6 MCP tools. `Run` starts `PendingMap` cleanup and calls `mcpsdk.Server.Run`. `Server()` exposes the underlying MCP server for HTTP/SSE integrations that bypass `Run`. `StartCleanup` is idempotent (backed by `sync.Once`).
+
+### MCP Tools
+
+| Tool | Stream operation | Policy check |
+|------|-----------------|--------------|
+| `get_task` | `XREADGROUP` from `agent.tasks.<agent>` | `agent → orchestrator` |
+| `complete_task` | `XADD` to `agent.events.completed` + `XACK` | `agent → orchestrator` |
+| `fail_task` | `XADD` to `agent.events.failed` + `XACK` | `agent → orchestrator` |
+| `heartbeat` | no-op | none |
+| `send_message` | `XADD` to `agent.messages.<to>` | `agent → recipient` (peer-to-peer) |
+| `receive_message` | `XREADGROUP` from `agent.messages.<agent>` + `XACK` | `agent → orchestrator` |
+
+**Security invariants:**
+- Agent and recipient IDs validated via DNS-label regex `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]$` (CWE-20/CWE-74)
+- Bodies capped at `document.MaxDocumentBytes` (64 KiB) on both send and receive paths (CWE-400)
+- `taskID = Delivery.MsgID` — never `Envelope.ID` or any document field
+- `SECURITY(Phase 3)` comment at every `Allowed()` call site — `agent` field is self-reported until Ed25519 verification lands (CWE-287)
+
+---
+
+## cmd/admin
+
+`github.com/valpere/aga2aga/cmd/admin`
+
+Binary name: `aga2aga-admin`. HTTP admin server.
+
+```
+aga2aga-admin --addr :8080 --db ./admin.db
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--addr` | `:8080` | Listen address |
+| `--db` | `./admin.db` | SQLite database path |
+
+Seeds a default `admin` user on first run (password must be changed on first login). Exposes the `GET /api/v1/evaluate?source=X&target=Y` endpoint for `HTTPEnforcer`.
+
+---
+
+## cmd/gateway
+
+`github.com/valpere/aga2aga/cmd/gateway`
+
+Binary name: `aga2aga-gateway`. MCP Gateway server.
+
+```
+aga2aga-gateway [flags]
+```
+
+| Flag | Env override | Default | Description |
+|------|-------------|---------|-------------|
+| `--agent-id` | | `mcp-gateway` | Gateway identity |
+| `--redis-addr` | | `localhost:6379` | Redis address |
+| `--redis-password` | | | Redis password |
+| `--redis-db` | | `0` | Redis database number |
+| `--group-id` | | `aga2aga` | Redis consumer group |
+| `--transport` | | `stdio` | MCP transport: `stdio` or `http` |
+| `--http-addr` | | `:8081` | Listen address (HTTP transport) |
+| `--admin-url` | | | Admin server URL for `HTTPEnforcer` |
+| `--admin-db` | | | SQLite path for `EmbeddedEnforcer` |
+| `--task-read-timeout` | | `5s` | Timeout for `get_task` / `receive_message` |
+| `ADMIN_API_KEY` | env | | Bearer token for `HTTPEnforcer` (CWE-214: prefer env over flag) |
+
+`--admin-db` path is resolved through `filepath.EvalSymlinks` before use (CWE-22/61). The HTTP server uses `WriteTimeout: 0` to support long-lived SSE connections.
 
 ---
 

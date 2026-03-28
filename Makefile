@@ -27,7 +27,7 @@ lint:
 		{ echo "golangci-lint not installed — see https://golangci-lint.run/usage/install/"; exit 1; }
 	golangci-lint run
 
-## validate: validate test fixtures with the aga CLI
+## validate: validate test fixtures with the aga2aga CLI
 validate:
 	@files=$$(find tests/testdata -maxdepth 1 -name '*.md' 2>/dev/null); \
 	if [ -n "$$files" ]; then \
