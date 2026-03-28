@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -49,16 +50,11 @@ func (g *Gateway) authenticateAgent(ctx context.Context, claimedAgent, rawKey st
 	if err != nil {
 		return fmt.Errorf("gateway: authentication failed: %w", err)
 	}
-	if boundID != claimedAgent {
-		return fmt.Errorf("gateway: api_key is bound to agent %q, not %q", boundID, claimedAgent)
+	// SECURITY: constant-time comparison prevents timing oracle on the bound agent ID (CWE-208).
+	if subtle.ConstantTimeCompare([]byte(boundID), []byte(claimedAgent)) != 1 {
+		return fmt.Errorf("gateway: api_key is not bound to the claimed agent")
 	}
 	return nil
-}
-
-// AuthenticateAgentForTest exposes authenticateAgent for package-level tests.
-// Must not be called from production code outside the gateway package.
-func (g *Gateway) AuthenticateAgentForTest(ctx context.Context, claimedAgent, rawKey string) error {
-	return g.authenticateAgent(ctx, claimedAgent, rawKey)
 }
 
 // registerTools adds the 6 MCP tools to the server. Called once by New.

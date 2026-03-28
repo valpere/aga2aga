@@ -45,7 +45,7 @@ func (a *EmbeddedAuthenticator) Authenticate(ctx context.Context, rawKey string)
 
 	k, err := a.store.GetAPIKeyByHash(ctx, hash)
 	if err != nil {
-		return "", fmt.Errorf("gateway/auth: key not found")
+		return "", fmt.Errorf("gateway: authentication failed: key not found: %w", err)
 	}
 	if !k.RevokedAt.IsZero() {
 		return "", fmt.Errorf("gateway/auth: key is revoked")

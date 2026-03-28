@@ -17,7 +17,8 @@
 //	--admin-api-key      Bearer token for remote policy mode
 //	--pending-ttl        PendingMap entry TTL (default: 1h)
 //	--agent-id           Gateway identity used in policy checks (default: mcp-gateway)
-//	--task-read-timeout  Max wait for a task delivery in get_task (default: 5s)
+//	--task-read-timeout   Max wait for a task delivery in get_task (default: 5s)
+//	--require-agent-key   Require a valid role=agent API key with every MCP tool call (default: false)
 package main
 
 import (
@@ -84,7 +85,11 @@ func main() {
 	// Agent authenticator (nil when --require-agent-key is false).
 	var auth gateway.AgentAuthenticator
 	if *requireAgentKey {
-		auth = mustAuthenticator(*policyMode, *adminDB, *adminURL)
+		var closeAuth func()
+		auth, closeAuth = mustAuthenticator(*policyMode, *adminDB, *adminURL)
+		if closeAuth != nil {
+			defer closeAuth()
+		}
 		log.Printf("agent key authentication enabled")
 	} else {
 		log.Printf("agent key authentication disabled (--require-agent-key=false); all self-reported agent IDs accepted")
@@ -181,12 +186,13 @@ func mustEnforcer(mode, adminDB, adminURL, adminAPIKey string) (gateway.PolicyEn
 }
 
 // mustAuthenticator creates an AgentAuthenticator for the given policy mode.
-// In embedded mode it reuses the SQLite store; in remote mode it calls
-// /api/v1/auth on the admin server. The store is opened independently of
-// mustEnforcer so each holds its own connection.
-func mustAuthenticator(mode, adminDB, adminURL string) gateway.AgentAuthenticator {
+// Returns a close function if the authenticator holds a resource (e.g. SQLite
+// store); close may be nil for resource-free authenticators.
+// In embedded mode a new SQLite connection is opened independently of mustEnforcer.
+func mustAuthenticator(mode, adminDB, adminURL string) (gateway.AgentAuthenticator, func()) {
 	switch mode {
 	case "embedded":
+		// SECURITY: resolve symlinks so the opened file is the real path (CWE-22/61).
 		resolvedDB, err := filepath.EvalSymlinks(adminDB)
 		if err != nil {
 			log.Fatalf("resolve admin-db path for authenticator: %v", err)
@@ -195,7 +201,7 @@ func mustAuthenticator(mode, adminDB, adminURL string) gateway.AgentAuthenticato
 		if err != nil {
 			log.Fatalf("open admin store for authenticator: %v", err)
 		}
-		return gateway.NewEmbeddedAuthenticator(store)
+		return gateway.NewEmbeddedAuthenticator(store), func() { _ = store.Close() }
 
 	case "remote":
 		if adminURL == "" {
@@ -205,11 +211,11 @@ func mustAuthenticator(mode, adminDB, adminURL string) gateway.AgentAuthenticato
 		if err != nil {
 			log.Fatalf("create HTTP authenticator: %v", err)
 		}
-		return auth
+		return auth, nil
 
 	default:
 		log.Fatalf("unknown --policy-mode %q (want embedded or remote)", mode)
-		return nil // unreachable
+		return nil, nil // unreachable
 	}
 }
 

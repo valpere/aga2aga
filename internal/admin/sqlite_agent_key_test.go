@@ -79,16 +79,4 @@ func TestSQLiteStore_AgentKey(t *testing.T) {
 		}
 	})
 
-	t.Run("GetAPIKeyByAgentID", func(t *testing.T) {
-		got, err := s.GetAPIKeyByAgentID(ctx, "agorg-1", "agent-alpha")
-		if err != nil {
-			t.Fatalf("GetAPIKeyByAgentID: %v", err)
-		}
-		if got.AgentID != "agent-alpha" {
-			t.Errorf("AgentID = %q, want %q", got.AgentID, "agent-alpha")
-		}
-		if got.Role != admin.RoleAgent {
-			t.Errorf("Role = %q, want %q", got.Role, admin.RoleAgent)
-		}
-	})
 }

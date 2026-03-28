@@ -7,20 +7,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/valpere/aga2aga/pkg/admin"
 )
-
-// agentIDRE is the same pattern used by the gateway to validate agent identifiers.
-var agentIDRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]$`) //nolint:gochecknoglobals
-
-// isValidAgentID reports whether s satisfies the agent ID rules.
-func isValidAgentID(s string) bool {
-	return agentIDRE.MatchString(s)
-}
 
 type apiKeyListPage struct {
 	Page    string
@@ -54,9 +45,9 @@ func (srv *Server) handleAPIKeyNewPost(w http.ResponseWriter, r *http.Request) {
 	}
 	switch role {
 	case admin.RoleOperator, admin.RoleViewer:
-		// no additional fields required
+		agentID = "" // non-agent roles must not carry an agent binding
 	case admin.RoleAgent:
-		if !isValidAgentID(agentID) {
+		if !admin.IsValidAgentID(agentID) {
 			http.Error(w, "role=agent requires a valid agent_id", http.StatusBadRequest)
 			return
 		}
