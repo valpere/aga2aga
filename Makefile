@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help build clean test test-integration lint validate docker docker-admin docker-images up down ps logs tidy
+.PHONY: help build clean test test-integration lint validate docker docker-admin docker-images up down ps logs tidy e2e-setup e2e
 
 ## help: print this help message
 help:
@@ -77,3 +77,14 @@ logs:
 ## tidy: sync go.mod and go.sum
 tidy:
 	go mod tidy
+
+## e2e-setup: install Playwright and Chromium browser (one-time)
+e2e-setup:
+	cd e2e && npm ci && npx playwright install chromium
+
+## e2e: run Playwright E2E tests against Docker Compose stack (resets DB volume)
+e2e: docker-images
+	$(COMPOSE) down -v
+	$(COMPOSE) up -d --wait
+	cd e2e && npx playwright test; status=$$?; \
+	cd .. && $(COMPOSE) down -v; exit $$status
