@@ -30,7 +30,7 @@ type noopEnforcer struct{}
 func (noopEnforcer) Allowed(_ context.Context, _, _ string) (bool, error) { return true, nil }
 
 func TestGateway_RegisterTools(t *testing.T) {
-	g := gateway.New(noopTransport{}, noopEnforcer{}, gateway.DefaultConfig())
+	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.DefaultConfig())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -74,14 +74,14 @@ func TestGateway_RegisterTools(t *testing.T) {
 }
 
 func TestGateway_Server_NotNil(t *testing.T) {
-	g := gateway.New(noopTransport{}, noopEnforcer{}, gateway.DefaultConfig())
+	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.DefaultConfig())
 	if g.Server() == nil {
 		t.Error("Server() returned nil; want non-nil MCP server")
 	}
 }
 
 func TestGateway_StartCleanup_DoesNotBlock(t *testing.T) {
-	g := gateway.New(noopTransport{}, noopEnforcer{}, gateway.DefaultConfig())
+	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.DefaultConfig())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan struct{})
@@ -98,7 +98,7 @@ func TestGateway_StartCleanup_DoesNotBlock(t *testing.T) {
 }
 
 func TestGateway_Run_ExitsOnContextCancel(t *testing.T) {
-	g := gateway.New(noopTransport{}, noopEnforcer{}, gateway.DefaultConfig())
+	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.DefaultConfig())
 
 	ctx, cancel := context.WithCancel(context.Background())
 

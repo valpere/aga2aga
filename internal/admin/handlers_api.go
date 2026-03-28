@@ -27,6 +27,28 @@ func (srv *Server) apiKeyFromRequest(r *http.Request) *admin.APIKey {
 	return k
 }
 
+// handleAPIAuth is the JSON endpoint the gateway calls to validate an agent
+// API key. Returns 200 with the bound agent ID if the key is valid and has
+// role=agent; otherwise 401.
+//
+// POST /api/v1/auth
+// Authorization: Bearer <raw-api-key>
+//
+// Response (200): {"valid":true,"agent_id":"..."}
+// Response (401): {"error":"unauthorized"}
+func (srv *Server) handleAPIAuth(w http.ResponseWriter, r *http.Request) {
+	k := srv.apiKeyFromRequest(r)
+	if k == nil || k.Role != admin.RoleAgent {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"valid":    true,
+		"agent_id": k.AgentID,
+	})
+}
+
 // handleAPIEvaluate is the JSON endpoint the gateway calls to check whether a
 // message from source to target is allowed.
 //

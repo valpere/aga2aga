@@ -14,30 +14,41 @@
 
 <div class="card">
   <div class="actions" style="margin-bottom:1rem">
-    <form method="POST" action="/api-keys/new" style="display:flex;gap:.5rem;align-items:flex-end">
+    <form method="POST" action="/api-keys/new" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
       <div>
         <label>Name</label><br>
         <input type="text" name="name" placeholder="e.g. gateway-prod" required>
       </div>
       <div>
         <label>Role</label><br>
-        <select name="role">
+        <select name="role" id="key-role" onchange="toggleAgentID(this.value)">
           <option value="operator">operator</option>
           <option value="viewer">viewer</option>
+          <option value="agent">agent</option>
         </select>
+      </div>
+      <div id="agent-id-field" style="display:none">
+        <label>Agent ID</label><br>
+        <input type="text" name="agent_id" placeholder="e.g. agent-alpha" pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]">
       </div>
       <button type="submit" class="btn btn-primary btn-sm">Create Key</button>
     </form>
   </div>
+  <script>
+  function toggleAgentID(role) {
+    document.getElementById('agent-id-field').style.display = (role === 'agent') ? '' : 'none';
+  }
+  </script>
 
   {{if .Keys}}
   <table>
-    <thead><tr><th>Name</th><th>Role</th><th>Created By</th><th>Created</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Name</th><th>Role</th><th>Agent ID</th><th>Created By</th><th>Created</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
     {{range .Keys}}
     <tr>
       <td>{{.Name}}</td>
       <td><span class="badge">{{.Role}}</span></td>
+      <td class="text-muted">{{.AgentID}}</td>
       <td class="text-muted">{{.CreatedBy}}</td>
       <td class="text-muted">{{.CreatedAt.Format "2006-01-02"}}</td>
       <td>
