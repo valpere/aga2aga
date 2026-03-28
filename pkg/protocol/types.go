@@ -23,13 +23,21 @@ const (
 	AgentRecombineProposal MessageType = "agent.recombine.proposal"
 )
 
-// Task message types (5).
+// Agent message types (1).
+// General-purpose peer-to-peer communication — fire-and-forget, no outcome required.
+// The base message kind: every envelope document is a message; tasks are a specialised subtype.
+const (
+	AgentMessage MessageType = "agent.message"
+)
+
+// Task message types (4).
+// Request-response work units — the sender expects an explicit outcome delivered as a separate
+// message: task.result (success + body) or task.fail (failure + reason).
 const (
 	TaskRequest  MessageType = "task.request"
 	TaskResult   MessageType = "task.result"
 	TaskFail     MessageType = "task.fail"
 	TaskProgress MessageType = "task.progress"
-	AgentMessage MessageType = "agent.message"
 )
 
 // Negotiation message types (8).

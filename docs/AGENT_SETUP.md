@@ -1,6 +1,6 @@
 # Agent Setup Guide
 
-How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI) to connect to the aga2aga MCP Gateway, exchange tasks, and send free-form messages to other agents.
+How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI) to connect to the aga2aga MCP Gateway and exchange messages with the orchestrator and other agents.
 
 ---
 
@@ -28,18 +28,25 @@ How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI) to connect to 
 
 ## Overview
 
-The gateway bridges AI agents to a Redis Streams orchestration system. From the agent's perspective it is a standard MCP server that exposes six tools:
+The gateway bridges AI agents to a Redis Streams orchestration system. Agents communicate by exchanging **messages** through the gateway. A **task** is a specialised kind of message that requires an explicit outcome (complete or fail).
+
+From the agent's perspective the gateway is a standard MCP server with six tools:
 
 ```
-get_task         → pull the next task assigned to this agent
-complete_task    → report success + deliver a result
-fail_task        → report failure with an error message
-heartbeat        → health check (returns ok immediately)
-send_message     → send a free-form message to another agent
-receive_message  → fetch the next message from this agent's inbox
+Messaging (fire-and-forget peer-to-peer):
+  send_message     → send a message to another agent
+  receive_message  → fetch the next message from this agent's inbox
+
+Task lifecycle (request-response with guaranteed delivery):
+  get_task         → pull the next task assigned to this agent
+  complete_task    → report success + deliver a result
+  fail_task        → report failure with an error message
+
+Utility:
+  heartbeat        → health check (returns ok immediately)
 ```
 
-The agent polls `get_task`, does its work, then calls `complete_task` or `fail_task`. The gateway handles all Redis Streams bookkeeping transparently. Agents can also exchange free-form messages (advice, warnings, suggestions) at any time using `send_message` and `receive_message` — independently of the task lifecycle.
+The agent polls `get_task`, does its work, then calls `complete_task` or `fail_task`. Agents can also exchange free-form messages (advice, warnings, suggestions) at any time using `send_message` and `receive_message` — independently of the task lifecycle. The gateway handles all Redis Streams bookkeeping transparently.
 
 ---
 

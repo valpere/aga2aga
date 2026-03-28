@@ -25,16 +25,30 @@ The wire format is the envelope document: a Markdown file with a YAML control he
   +------------------+
 ```
 
-The gateway maps four MCP tools to Redis operations:
+Agents communicate by exchanging **messages** through the gateway. A **task** is a specialised message that requires an explicit outcome (complete or fail). The gateway exposes six MCP tools:
+
+**Messaging** — fire-and-forget peer-to-peer:
+
+| MCP Tool          | Redis operation                                      |
+|-------------------|------------------------------------------------------|
+| `send_message`    | `XADD` to `agent.messages.<recipient>`               |
+| `receive_message` | `XREADGROUP` from `agent.messages.<agent>` + `XACK`  |
+
+**Task lifecycle** — request-response with guaranteed delivery:
 
 | MCP Tool        | Redis operation                               |
 |-----------------|-----------------------------------------------|
 | `get_task`      | `XREADGROUP` from `agent.tasks.<agent-id>`    |
 | `complete_task` | `XADD` to `agent.events.completed` + `XACK`  |
 | `fail_task`     | `XADD` to `agent.events.failed`               |
-| `heartbeat`     | health check only                             |
 
-The gateway maintains an in-memory `pending map[taskID]msgID` so it can `XACK` the correct Redis message when the agent reports completion.
+**Utility:**
+
+| MCP Tool    | Redis operation   |
+|-------------|-------------------|
+| `heartbeat` | health check only |
+
+The gateway maintains an in-memory `pending map[taskID]msgID` so it can `XACK` the correct Redis message when the agent reports completion. Messaging tools ack immediately on receive — no pending tracking needed.
 
 ## Package Dependency Graph
 
@@ -65,7 +79,7 @@ Defines the canonical message type constants and the immutable type registry. No
 
 ### MessageType Constants
 
-24 types across three groups:
+24 types across four groups:
 
 **Agent Evolution (11):**
 
@@ -83,7 +97,13 @@ Defines the canonical message type constants and the immutable type registry. No
 | `AgentQuarantine`      | `agent.quarantine`            |
 | `AgentRecombineProposal` | `agent.recombine.proposal`  |
 
-**Task (5):**
+**Agent Message (1):** fire-and-forget peer-to-peer; no outcome required.
+
+| Constant       | Wire value      |
+|----------------|-----------------|
+| `AgentMessage` | `agent.message` |
+
+**Task (4):** request-response work units; outcome required via `task.result` or `task.fail`.
 
 | Constant       | Wire value         |
 |----------------|--------------------|
@@ -91,7 +111,6 @@ Defines the canonical message type constants and the immutable type registry. No
 | `TaskResult`   | `task.result`      |
 | `TaskFail`     | `task.fail`        |
 | `TaskProgress` | `task.progress`    |
-| `AgentMessage` | `agent.message`    |
 
 **Negotiation (8):**
 

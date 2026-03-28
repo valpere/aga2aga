@@ -31,14 +31,16 @@ aga2aga exploits this: it exposes a small set of MCP tools the agents already un
   +------------------+
 ```
 
-The gateway maps four MCP tools to Redis operations:
+Agents communicate by exchanging **messages** through the gateway. A **task** is a specialised message that requires an explicit outcome. The gateway exposes six MCP tools:
 
-| MCP Tool        | Redis operation                               |
-|-----------------|-----------------------------------------------|
-| `get_task`      | `XREADGROUP` from `agent.tasks.<agent-id>`    |
-| `complete_task` | `XADD` to `agent.events.completed` + `XACK`  |
-| `fail_task`     | `XADD` to `agent.events.failed`               |
-| `heartbeat`     | health check only                             |
+| MCP Tool          | Kind    | Redis operation                                      |
+|-------------------|---------|------------------------------------------------------|
+| `send_message`    | message | `XADD` to `agent.messages.<recipient>`               |
+| `receive_message` | message | `XREADGROUP` from `agent.messages.<agent>` + `XACK`  |
+| `get_task`        | task    | `XREADGROUP` from `agent.tasks.<agent-id>`           |
+| `complete_task`   | task    | `XADD` to `agent.events.completed` + `XACK`          |
+| `fail_task`       | task    | `XADD` to `agent.events.failed`                      |
+| `heartbeat`       | utility | health check only                                    |
 
 ### Envelope Document Format
 

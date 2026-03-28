@@ -20,12 +20,13 @@ var allTypes = []protocol.MessageType{ //nolint:gochecknoglobals
 	protocol.AgentRetirement,
 	protocol.AgentQuarantine,
 	protocol.AgentRecombineProposal,
-	// Task (5)
+	// Agent message (1)
+	protocol.AgentMessage,
+	// Task (4)
 	protocol.TaskRequest,
 	protocol.TaskResult,
 	protocol.TaskFail,
 	protocol.TaskProgress,
-	protocol.AgentMessage,
 	// Negotiation (8)
 	protocol.NegotiationPropose,
 	protocol.NegotiationAccept,
