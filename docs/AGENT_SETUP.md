@@ -468,7 +468,7 @@ Your `result` (in `complete_task`) or `error` (in `fail_task`) should also be pl
 | `gateway: authentication failed: key not found` | `api_key` not in store | Use the raw key from Admin UI API Keys page |
 | `gateway: authentication failed: key is revoked` | Key was revoked | Generate a new agent key in Admin UI |
 | `gateway: authentication failed: key role "..." is not agent` | Key has wrong role | Create a new key with `role: agent` |
-| `gateway: api_key is bound to agent "X", not "Y"` | Key belongs to a different agent | Use the key issued for this specific agent |
+| `gateway: api_key is not bound to the claimed agent` | Key belongs to a different agent | Use the key issued for this specific agent |
 | `gateway: agent "..." not allowed` | No policy permits this agent | Admin UI → Policies → add `allow <agent-id> → orchestrator` |
 | `gateway: policy check: ...` | Admin API unreachable or key invalid | Check `ADMIN_API_KEY` and `--admin-url` |
 | `gateway: unknown task_id "..."` | `task_id` expired or already acknowledged | Do not reuse `task_id` after calling `complete_task` / `fail_task` |

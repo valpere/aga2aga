@@ -45,13 +45,13 @@ func (a *EmbeddedAuthenticator) Authenticate(ctx context.Context, rawKey string)
 
 	k, err := a.store.GetAPIKeyByHash(ctx, hash)
 	if err != nil {
-		return "", fmt.Errorf("gateway: authentication failed: key not found: %w", err)
+		return "", fmt.Errorf("key not found: %w", err)
 	}
 	if !k.RevokedAt.IsZero() {
-		return "", fmt.Errorf("gateway/auth: key is revoked")
+		return "", fmt.Errorf("key is revoked")
 	}
 	if k.Role != admin.RoleAgent {
-		return "", fmt.Errorf("gateway/auth: key role %q is not agent", k.Role)
+		return "", fmt.Errorf("key role %q is not agent", k.Role)
 	}
 	return k.AgentID, nil
 }
@@ -92,34 +92,34 @@ func (a *HTTPAuthenticator) Authenticate(ctx context.Context, rawKey string) (st
 	endpoint := a.baseURL + "/api/v1/auth"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
 	if err != nil {
-		return "", fmt.Errorf("gateway/auth: build request: %w", err)
+		return "", fmt.Errorf("build request: %w", err)
 	}
 	// SECURITY: rawKey is a Bearer credential — never include it in error messages.
 	req.Header.Set("Authorization", "Bearer "+rawKey)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("gateway/auth: http auth: %w", err)
+		return "", fmt.Errorf("http request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return "", fmt.Errorf("gateway/auth: authentication failed")
+		return "", fmt.Errorf("key not found or revoked")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("gateway/auth: auth endpoint returned status %d", resp.StatusCode)
+		return "", fmt.Errorf("auth endpoint returned status %d", resp.StatusCode)
 	}
 
 	var result struct {
-		Valid    bool   `json:"valid"`
-		AgentID  string `json:"agent_id"`
+		Valid   bool   `json:"valid"`
+		AgentID string `json:"agent_id"`
 	}
 	limited := io.LimitReader(resp.Body, maxAuthResponseBytes)
 	if err := json.NewDecoder(limited).Decode(&result); err != nil {
-		return "", fmt.Errorf("gateway/auth: decode response: %w", err)
+		return "", fmt.Errorf("decode response: %w", err)
 	}
 	if !result.Valid {
-		return "", fmt.Errorf("gateway/auth: authentication failed")
+		return "", fmt.Errorf("key not found or revoked")
 	}
 	return result.AgentID, nil
 }
