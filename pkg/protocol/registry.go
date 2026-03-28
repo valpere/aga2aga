@@ -65,7 +65,14 @@ var registry = map[MessageType]TypeMeta{ //nolint:gochecknoglobals
 		SchemaRef:      "agentRecombineProposal",
 	},
 
-	// Task (5)
+	// Agent message (1)
+	// agent.message: id required for deduplication and replay protection.
+	AgentMessage: {
+		RequiredFields: []string{"id", "from", "to"},
+		SchemaRef:      "",
+	},
+
+	// Task (4)
 	TaskRequest: {
 		RequiredFields: []string{"id", "from", "to", "exec_id", "step"},
 		SchemaRef:      "",
@@ -80,11 +87,6 @@ var registry = map[MessageType]TypeMeta{ //nolint:gochecknoglobals
 	},
 	TaskProgress: {
 		RequiredFields: []string{"id", "from", "to", "exec_id", "step"},
-		SchemaRef:      "",
-	},
-	// agent.message: id required for deduplication and replay protection.
-	AgentMessage: {
-		RequiredFields: []string{"id", "from", "to"},
 		SchemaRef:      "",
 	},
 
