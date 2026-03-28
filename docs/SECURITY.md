@@ -125,11 +125,20 @@ The following are known gaps that will be addressed in later phases:
 
 | Limitation | Resolution phase |
 |------------|-----------------|
-| No cryptographic identity for `Envelope.From` | Phase 3 (Ed25519) |
+| No cryptographic identity for `Envelope.From` | Phase 2.5 (agent keys — lightweight) / Phase 3 (Ed25519 — full) |
 | No transport-layer encryption | Phase 2+ (TLS on Redis; Phase 5: P2P) |
 | No rate limiting on document ingestion | Phase 2 (gateway) |
 | `NegotiationTransition` is a stub (always returns false) | Phase 4 |
-| No key revocation mechanism | Phase 3+ |
+
+### Phase 2.5 — Agent API Key Authorization (current)
+
+`cmd/gateway` now supports `--require-agent-key`. When enabled, every MCP tool call must carry an `api_key` parameter whose SHA-256 hash matches an active `role=agent` API key in the admin store, and whose bound agent ID matches the claimed `agent` parameter.
+
+This provides lightweight identity binding without cryptography. It is a bridge until Phase 3 Ed25519 is in place.
+
+**Trust model:** The key binding is as strong as the admin store's access controls. If the admin database is compromised, attacker-issued keys can impersonate any agent. Keep the admin DB access-controlled and the gateway's `--admin-db` path non-symlinked (the gateway applies `filepath.EvalSymlinks` guard — CWE-22/61).
+
+**Revocation:** Keys can be revoked in the Admin UI at any time. The next call with a revoked key returns an authentication error immediately.
 
 ## CWE Reference
 

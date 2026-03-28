@@ -8,6 +8,7 @@ How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI) to connect to 
 
 1. [Overview](#overview)
 2. [Prerequisites](#prerequisites)
+   - [Authentication](#authentication)
 3. [Configuring `.mcp.json`](#configuring-mcpjson)
    - [stdio transport (recommended)](#stdio-transport-recommended)
    - [HTTP transport](#http-transport)
@@ -55,8 +56,39 @@ The agent polls `get_task`, does its work, then calls `complete_task` or `fail_t
 | Requirement | Notes |
 |-------------|-------|
 | aga2aga gateway running | See [RUNNING.md](RUNNING.md) for setup |
-| Agent registered in Admin UI | Create an API key with `operator` role |
+| Agent registered in Admin UI | See below — register the agent, then create an agent key |
 | Policy entry allowing the agent | Admin UI → Policies → allow `<your-agent-id>` → `orchestrator` |
+
+### Authentication
+
+When the gateway runs with `--require-agent-key`, every MCP tool call must include a valid API key bound to the calling agent.
+
+**Getting an agent API key:**
+
+1. Open the Admin UI → **API Keys**
+2. In the **Create Key** form, set **Role** to `agent`
+3. Enter the agent's ID in the **Agent ID** field (e.g. `my-agent-01`)
+4. Click **Create Key** — copy the raw key immediately (shown once)
+
+**Passing the key in tool calls:**
+
+Add `api_key` to every tool call argument:
+
+```json
+{
+  "agent":   "my-agent-01",
+  "api_key": "the-raw-key-copied-from-admin-ui"
+}
+```
+
+The gateway verifies:
+1. The key exists and is not revoked
+2. The key has `role: agent`
+3. The key's bound agent ID matches the `agent` field
+
+**Without `--require-agent-key`** (default), `api_key` is accepted but not checked. All self-reported agent IDs are trusted. This is backward-compatible but provides no identity assurance beyond policy checks. Enable `--require-agent-key` once all agents have keys provisioned.
+
+> **Security note:** Agent keys are a Phase 2.5 bridge. Full Ed25519 cryptographic identity verification is planned for Phase 3.
 
 ---
 
@@ -433,6 +465,10 @@ Your `result` (in `complete_task`) or `error` (in `fail_task`) should also be pl
 |---------------|-------|-----|
 | `gateway: invalid agent id "..."` | Agent ID fails the regex | Use only `[a-zA-Z0-9._-]` |
 | `gateway: invalid recipient id "..."` | Recipient ID (`to`) fails the regex | Use only `[a-zA-Z0-9._-]` |
+| `gateway: authentication failed: key not found` | `api_key` not in store | Use the raw key from Admin UI API Keys page |
+| `gateway: authentication failed: key is revoked` | Key was revoked | Generate a new agent key in Admin UI |
+| `gateway: authentication failed: key role "..." is not agent` | Key has wrong role | Create a new key with `role: agent` |
+| `gateway: api_key is bound to agent "X", not "Y"` | Key belongs to a different agent | Use the key issued for this specific agent |
 | `gateway: agent "..." not allowed` | No policy permits this agent | Admin UI → Policies → add `allow <agent-id> → orchestrator` |
 | `gateway: policy check: ...` | Admin API unreachable or key invalid | Check `ADMIN_API_KEY` and `--admin-url` |
 | `gateway: unknown task_id "..."` | `task_id` expired or already acknowledged | Do not reuse `task_id` after calling `complete_task` / `fail_task` |
