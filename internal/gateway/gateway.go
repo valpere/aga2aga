@@ -2,24 +2,27 @@ package gateway
 
 import (
 	"context"
+	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/valpere/aga2aga/pkg/transport"
 )
 
-// Gateway wires the MCP server, Redis transport, PendingMap, and policy
-// enforcer. Call New to create one, then Run to start serving.
+// Gateway wires the MCP server, Redis transport, PendingMap, policy enforcer,
+// and optional agent authenticator. Call New to create one, then Run to serve.
 type Gateway struct {
 	server   *mcpsdk.Server
 	trans    transport.Transport
 	pending  *PendingMap
 	enforcer PolicyEnforcer
+	auth     AgentAuthenticator
 	cfg      Config
 }
 
-// New creates a Gateway with all 6 MCP tools registered. The MCP server is
+// New creates a Gateway with all 6 MCP tools registered. auth may be nil to
+// disable agent key authentication (legacy/optional mode). The MCP server is
 // ready to accept connections after New returns — call Run to start serving.
-func New(t transport.Transport, e PolicyEnforcer, cfg Config) *Gateway {
+func New(t transport.Transport, e PolicyEnforcer, auth AgentAuthenticator, cfg Config) *Gateway {
 	srv := mcpsdk.NewServer(
 		&mcpsdk.Implementation{Name: "aga2aga-gateway", Version: "v1"},
 		nil,
@@ -29,10 +32,33 @@ func New(t transport.Transport, e PolicyEnforcer, cfg Config) *Gateway {
 		trans:    t,
 		pending:  NewPendingMap(),
 		enforcer: e,
+		auth:     auth,
 		cfg:      cfg,
 	}
 	g.registerTools()
 	return g
+}
+
+// authenticateAgent validates the raw API key against the claimed agent ID.
+// If auth is nil (legacy mode), it returns nil immediately.
+func (g *Gateway) authenticateAgent(ctx context.Context, claimedAgent, rawKey string) error {
+	if g.auth == nil {
+		return nil
+	}
+	boundID, err := g.auth.Authenticate(ctx, rawKey)
+	if err != nil {
+		return fmt.Errorf("gateway: authentication failed: %w", err)
+	}
+	if boundID != claimedAgent {
+		return fmt.Errorf("gateway: api_key is bound to agent %q, not %q", boundID, claimedAgent)
+	}
+	return nil
+}
+
+// AuthenticateAgentForTest exposes authenticateAgent for package-level tests.
+// Must not be called from production code outside the gateway package.
+func (g *Gateway) AuthenticateAgentForTest(ctx context.Context, claimedAgent, rawKey string) error {
+	return g.authenticateAgent(ctx, claimedAgent, rawKey)
 }
 
 // registerTools adds the 6 MCP tools to the server. Called once by New.

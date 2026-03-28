@@ -67,7 +67,7 @@ func newTestGateway(t *testing.T, trans transport.Transport, enf PolicyEnforcer)
 	t.Helper()
 	cfg := DefaultConfig()
 	cfg.TaskReadTimeout = 50 * time.Millisecond
-	return New(trans, enf, cfg)
+	return New(trans, enf, nil, cfg)
 }
 
 // --- heartbeat tests ------------------------------------------------------

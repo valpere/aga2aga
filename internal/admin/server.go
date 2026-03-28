@@ -91,6 +91,7 @@ func (srv *Server) Handler() http.Handler {
 
 	// JSON API — authenticated by Bearer token (API key), not session cookie
 	mux.HandleFunc("GET /api/v1/evaluate", srv.handleAPIEvaluate)
+	mux.HandleFunc("POST /api/v1/auth", srv.handleAPIAuth)
 
 	return mux
 }

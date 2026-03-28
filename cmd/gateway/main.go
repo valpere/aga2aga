@@ -51,6 +51,7 @@ func main() {
 	pendingTTL := flag.Duration("pending-ttl", time.Hour, "PendingMap entry TTL")
 	agentID := flag.String("agent-id", "mcp-gateway", "Gateway identity used in policy checks")
 	taskReadTimeout := flag.Duration("task-read-timeout", 5*time.Second, "Max wait for a task delivery in get_task")
+	requireAgentKey := flag.Bool("require-agent-key", false, "Require agents to present a valid role=agent API key with every MCP tool call")
 	flag.Parse()
 
 	// SECURITY: prefer ADMIN_API_KEY env var over --admin-api-key flag.
@@ -80,13 +81,22 @@ func main() {
 		defer closeEnf()
 	}
 
+	// Agent authenticator (nil when --require-agent-key is false).
+	var auth gateway.AgentAuthenticator
+	if *requireAgentKey {
+		auth = mustAuthenticator(*policyMode, *adminDB, *adminURL)
+		log.Printf("agent key authentication enabled")
+	} else {
+		log.Printf("agent key authentication disabled (--require-agent-key=false); all self-reported agent IDs accepted")
+	}
+
 	// Gateway configuration.
 	cfg := gateway.DefaultConfig()
 	cfg.AgentID = *agentID
 	cfg.TaskReadTimeout = *taskReadTimeout
 	cfg.PendingTTL = *pendingTTL
 
-	gw := gateway.New(trans, enf, cfg)
+	gw := gateway.New(trans, enf, auth, cfg)
 
 	// Root context cancelled on SIGINT / SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -167,6 +177,39 @@ func mustEnforcer(mode, adminDB, adminURL, adminAPIKey string) (gateway.PolicyEn
 	default:
 		log.Fatalf("unknown --policy-mode %q (want embedded or remote)", mode)
 		return nil, nil // unreachable
+	}
+}
+
+// mustAuthenticator creates an AgentAuthenticator for the given policy mode.
+// In embedded mode it reuses the SQLite store; in remote mode it calls
+// /api/v1/auth on the admin server. The store is opened independently of
+// mustEnforcer so each holds its own connection.
+func mustAuthenticator(mode, adminDB, adminURL string) gateway.AgentAuthenticator {
+	switch mode {
+	case "embedded":
+		resolvedDB, err := filepath.EvalSymlinks(adminDB)
+		if err != nil {
+			log.Fatalf("resolve admin-db path for authenticator: %v", err)
+		}
+		store, err := iadmin.NewSQLiteStore(resolvedDB)
+		if err != nil {
+			log.Fatalf("open admin store for authenticator: %v", err)
+		}
+		return gateway.NewEmbeddedAuthenticator(store)
+
+	case "remote":
+		if adminURL == "" {
+			log.Fatal("--admin-url is required for remote policy mode with --require-agent-key")
+		}
+		auth, err := gateway.NewHTTPAuthenticator(adminURL)
+		if err != nil {
+			log.Fatalf("create HTTP authenticator: %v", err)
+		}
+		return auth
+
+	default:
+		log.Fatalf("unknown --policy-mode %q (want embedded or remote)", mode)
+		return nil // unreachable
 	}
 }
 

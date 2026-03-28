@@ -14,7 +14,7 @@ import (
 // agentIDPattern restricts agent identifiers to safe DNS-label-like strings.
 // This prevents Redis stream-name injection via newlines, null bytes, or
 // path separators (CWE-20 / CWE-74).
-var agentIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]$`)
+var agentIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]$`) //nolint:gochecknoglobals
 
 // isValidAgentID reports whether s is a valid agent identifier.
 func isValidAgentID(s string) bool {
@@ -24,7 +24,8 @@ func isValidAgentID(s string) bool {
 // --- input/output types for MCP tool handlers ----------------------------
 
 type getTaskIn struct {
-	Agent string `json:"agent"`
+	Agent  string `json:"agent"`
+	APIKey string `json:"api_key"`
 }
 
 type getTaskOut struct {
@@ -36,6 +37,7 @@ type completeTaskIn struct {
 	TaskID string `json:"task_id"`
 	Agent  string `json:"agent"`
 	Result string `json:"result"`
+	APIKey string `json:"api_key"`
 }
 
 type completeTaskOut struct {
@@ -46,6 +48,7 @@ type failTaskIn struct {
 	TaskID string `json:"task_id"`
 	Agent  string `json:"agent"`
 	Error  string `json:"error"`
+	APIKey string `json:"api_key"`
 }
 
 type failTaskOut struct {
@@ -53,7 +56,8 @@ type failTaskOut struct {
 }
 
 type heartbeatIn struct {
-	Agent string `json:"agent"`
+	Agent  string `json:"agent"`
+	APIKey string `json:"api_key"`
 }
 
 type heartbeatOut struct {
@@ -67,10 +71,12 @@ func (g *Gateway) handleGetTask(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 		return nil, getTaskOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
 
-	// SECURITY(Phase 3): in.Agent is self-reported by the MCP caller and is not
-	// cryptographically verified. Once pkg/identity is live, bind the verified
-	// Ed25519 public key from the MCP session to the agent identity and pass the
-	// verified ID here instead of in.Agent. See CWE-287.
+	// Verify the presented API key is bound to the claimed agent ID.
+	// Verified by AgentAuthenticator when configured; full Ed25519 in Phase 3. CWE-287.
+	if err := g.authenticateAgent(ctx, in.Agent, in.APIKey); err != nil {
+		return nil, getTaskOut{}, err
+	}
+
 	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
 	if err != nil {
 		return nil, getTaskOut{}, fmt.Errorf("gateway: policy check: %w", err)
@@ -108,7 +114,11 @@ func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequ
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
 
-	// SECURITY(Phase 3): in.Agent is self-reported — see handleGetTask comment.
+	// Verified by AgentAuthenticator when configured; full Ed25519 in Phase 3. CWE-287.
+	if err := g.authenticateAgent(ctx, in.Agent, in.APIKey); err != nil {
+		return nil, completeTaskOut{}, err
+	}
+
 	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
 	if err != nil {
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: policy check: %w", err)
@@ -155,7 +165,11 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 		return nil, failTaskOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
 
-	// SECURITY(Phase 3): in.Agent is self-reported — see handleGetTask comment.
+	// Verified by AgentAuthenticator when configured; full Ed25519 in Phase 3. CWE-287.
+	if err := g.authenticateAgent(ctx, in.Agent, in.APIKey); err != nil {
+		return nil, failTaskOut{}, err
+	}
+
 	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
 	if err != nil {
 		return nil, failTaskOut{}, fmt.Errorf("gateway: policy check: %w", err)
@@ -197,16 +211,23 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 	return nil, failTaskOut{Status: "ok"}, nil
 }
 
-func (g *Gateway) handleHeartbeat(_ context.Context, _ *mcpsdk.CallToolRequest, _ heartbeatIn) (*mcpsdk.CallToolResult, heartbeatOut, error) {
+func (g *Gateway) handleHeartbeat(ctx context.Context, _ *mcpsdk.CallToolRequest, in heartbeatIn) (*mcpsdk.CallToolResult, heartbeatOut, error) {
+	// Verified by AgentAuthenticator when configured; full Ed25519 in Phase 3. CWE-287.
+	if in.Agent != "" {
+		if err := g.authenticateAgent(ctx, in.Agent, in.APIKey); err != nil {
+			return nil, heartbeatOut{}, err
+		}
+	}
 	return nil, heartbeatOut{Status: "ok"}, nil
 }
 
 // --- send_message / receive_message types --------------------------------
 
 type sendMessageIn struct {
-	Agent string `json:"agent"`
-	To    string `json:"to"`
-	Body  string `json:"body"`
+	Agent  string `json:"agent"`
+	To     string `json:"to"`
+	Body   string `json:"body"`
+	APIKey string `json:"api_key"`
 }
 
 type sendMessageOut struct {
@@ -214,7 +235,8 @@ type sendMessageOut struct {
 }
 
 type receiveMessageIn struct {
-	Agent string `json:"agent"`
+	Agent  string `json:"agent"`
+	APIKey string `json:"api_key"`
 }
 
 type receiveMessageOut struct {
@@ -232,10 +254,11 @@ func (g *Gateway) handleSendMessage(ctx context.Context, _ *mcpsdk.CallToolReque
 		return nil, sendMessageOut{}, fmt.Errorf("gateway: invalid recipient id %q", in.To)
 	}
 
-	// SECURITY(Phase 3): in.Agent is self-reported by the MCP caller and is not
-	// cryptographically verified. Once pkg/identity is live, bind the verified
-	// Ed25519 public key from the MCP session to the agent identity and pass the
-	// verified ID here instead of in.Agent. See CWE-287.
+	// Verified by AgentAuthenticator when configured; full Ed25519 in Phase 3. CWE-287.
+	if err := g.authenticateAgent(ctx, in.Agent, in.APIKey); err != nil {
+		return nil, sendMessageOut{}, err
+	}
+
 	allowed, err := g.enforcer.Allowed(ctx, in.Agent, in.To)
 	if err != nil {
 		return nil, sendMessageOut{}, fmt.Errorf("gateway: policy check: %w", err)
@@ -270,7 +293,11 @@ func (g *Gateway) handleReceiveMessage(ctx context.Context, _ *mcpsdk.CallToolRe
 		return nil, receiveMessageOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
 
-	// SECURITY(Phase 3): in.Agent is self-reported — see handleSendMessage comment.
+	// Verified by AgentAuthenticator when configured; full Ed25519 in Phase 3. CWE-287.
+	if err := g.authenticateAgent(ctx, in.Agent, in.APIKey); err != nil {
+		return nil, receiveMessageOut{}, err
+	}
+
 	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
 	if err != nil {
 		return nil, receiveMessageOut{}, fmt.Errorf("gateway: policy check: %w", err)
