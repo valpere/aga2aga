@@ -205,7 +205,7 @@ Images are tagged with the current git SHA and `:latest`.
 
 | Command | What it does |
 |---------|-------------|
-| `make up` | Start all services (`docker-compose.local.yml`) |
+| `make up` | Start all services (`docker/docker-compose.local.yml`) |
 | `make down` | Stop all services |
 | `make ps` | Show service status and ports |
 | `make logs` | Tail + follow logs from all services |

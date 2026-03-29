@@ -34,8 +34,8 @@ services:
   admin:
     image: aga2aga-admin
     build:
-      context: .
-      dockerfile: Dockerfile.admin
+      context: ..
+      dockerfile: docker/Dockerfile.admin
     restart: unless-stopped
     # Bind to loopback — admin UI uses default credentials on first run.
     ports:
@@ -68,8 +68,8 @@ services:
   gateway:
     image: aga2aga-gateway
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"

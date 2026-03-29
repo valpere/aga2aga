@@ -47,15 +47,15 @@ VERSION ?= $(shell git rev-parse --short HEAD)
 
 # Load ADMIN_API_KEY and other secrets from .env.local automatically.
 # All docker compose targets use docker-compose.local.yml (ports 8087/3001/6380).
-COMPOSE := docker compose -f docker-compose.local.yml --env-file .env.local
+COMPOSE := docker compose -f docker/docker-compose.local.yml --env-file .env.local
 
 ## docker: build the gateway image tagged with git SHA and latest
 docker:
-	docker build -f Dockerfile -t aga2aga-gateway:$(VERSION) -t aga2aga-gateway:latest .
+	docker build -f docker/Dockerfile -t aga2aga-gateway:$(VERSION) -t aga2aga-gateway:latest .
 
 ## docker-admin: build the admin image tagged with git SHA and latest
 docker-admin:
-	docker build -f Dockerfile.admin -t aga2aga-admin:$(VERSION) -t aga2aga-admin:latest .
+	docker build -f docker/Dockerfile.admin -t aga2aga-admin:$(VERSION) -t aga2aga-admin:latest .
 
 ## docker-images: build both gateway and admin images
 docker-images: docker docker-admin
