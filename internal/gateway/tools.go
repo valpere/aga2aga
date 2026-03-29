@@ -162,6 +162,7 @@ func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequ
 	if err := g.trans.Publish(ctx, "agent.events.completed", doc, transport.PublishOptions{MaxLen: maxLen}); err != nil {
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: publish result: %w", err)
 	}
+	g.limiter.RecordSend(ctx, in.Agent)
 
 	if err := g.trans.Ack(ctx, topic, msgID); err != nil {
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: ack task: %w", err)
@@ -228,6 +229,7 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 	if err := g.trans.Publish(ctx, "agent.events.failed", doc, transport.PublishOptions{MaxLen: maxLen}); err != nil {
 		return nil, failTaskOut{}, fmt.Errorf("gateway: publish fail: %w", err)
 	}
+	g.limiter.RecordSend(ctx, in.Agent)
 
 	if err := g.trans.Ack(ctx, topic, msgID); err != nil {
 		return nil, failTaskOut{}, fmt.Errorf("gateway: ack task: %w", err)

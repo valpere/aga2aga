@@ -160,7 +160,8 @@ func (srv *Server) handleLimitsDelete(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/limits/check?agent=<agentID>
 func (srv *Server) handleAPILimitsCheck(w http.ResponseWriter, r *http.Request) {
 	k := srv.apiKeyFromRequest(r)
-	if k == nil {
+	// SECURITY: only agent keys may query their own effective limits (CWE-285).
+	if k == nil || k.Role != admin.RoleAgent {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
@@ -181,18 +182,22 @@ func (srv *Server) handleAPILimitsCheck(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(struct {
+	// l is nil when no agent-specific or global-default row exists;
+	// return all-zero values (unlimited) rather than panicking. (CWE-476)
+	var out struct {
 		MaxBodyBytes    int   `json:"max_body_bytes"`
 		MaxSendPerMin   int   `json:"max_send_per_min"`
 		MaxPendingTasks int   `json:"max_pending_tasks"`
 		MaxStreamLen    int64 `json:"max_stream_len"`
-	}{
-		MaxBodyBytes:    l.MaxBodyBytes,
-		MaxSendPerMin:   l.MaxSendPerMin,
-		MaxPendingTasks: l.MaxPendingTasks,
-		MaxStreamLen:    l.MaxStreamLen,
-	})
+	}
+	if l != nil {
+		out.MaxBodyBytes = l.MaxBodyBytes
+		out.MaxSendPerMin = l.MaxSendPerMin
+		out.MaxPendingTasks = l.MaxPendingTasks
+		out.MaxStreamLen = l.MaxStreamLen
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 // formInt reads an integer form value, returning 0 on parse failure.

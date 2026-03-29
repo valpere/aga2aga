@@ -27,7 +27,8 @@ type LimitEnforcer interface {
 	CheckSend(ctx context.Context, agentID string, bodySize int) error
 	// RecordSend increments the agent's per-minute send counter.
 	RecordSend(ctx context.Context, agentID string)
-	// CheckPendingTasks returns a non-nil error if currentPending >= limit.
+	// CheckPendingTasks returns a non-nil error if currentPending > limit
+	// (strictly greater than: at-limit means one more task is still allowed).
 	CheckPendingTasks(ctx context.Context, agentID string, currentPending int) error
 	// GetStreamMaxLen returns the XADD MAXLEN value for the agent's stream.
 	// Returns 0 when unlimited.
