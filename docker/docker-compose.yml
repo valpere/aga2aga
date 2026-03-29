@@ -34,8 +34,10 @@ services:
   admin:
     image: aga2aga-admin
     build:
-      context: .
-      dockerfile: Dockerfile.admin
+      # context: .. points to the repo root (parent of docker/) so the Dockerfile
+      # can COPY go.mod, go.sum, and source from the module root.
+      context: ..
+      dockerfile: docker/Dockerfile.admin
     restart: unless-stopped
     # Bind to loopback — admin UI uses default credentials on first run.
     ports:
@@ -68,8 +70,10 @@ services:
   gateway:
     image: aga2aga-gateway
     build:
-      context: .
-      dockerfile: Dockerfile
+      # context: .. points to the repo root (parent of docker/) so the Dockerfile
+      # can COPY go.mod, go.sum, and source from the module root.
+      context: ..
+      dockerfile: docker/Dockerfile
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
