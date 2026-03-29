@@ -69,7 +69,7 @@ func (g *Gateway) handleGetTask(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 		return nil, getTaskOut{}, err
 	}
 
-	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
+	allowed, err := g.enforcer.Allowed(ctx, in.Agent, PolicyTargetOrchestrator)
 	if err != nil {
 		return nil, getTaskOut{}, fmt.Errorf("gateway: policy check: %w", err)
 	}
@@ -127,7 +127,7 @@ func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequ
 		return nil, completeTaskOut{}, err
 	}
 
-	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
+	allowed, err := g.enforcer.Allowed(ctx, in.Agent, PolicyTargetOrchestrator)
 	if err != nil {
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: policy check: %w", err)
 	}
@@ -174,7 +174,7 @@ func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequ
 		EnvelopeID: doc.ID,
 		ThreadID:   doc.ThreadID,
 		FromAgent:  in.Agent,
-		ToAgent:    "orchestrator",
+		ToAgent:    PolicyTargetOrchestrator,
 		MsgType:    string(protocol.TaskResult),
 		Direction:  "send",
 		ToolName:   "complete_task",
@@ -195,7 +195,7 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 		return nil, failTaskOut{}, err
 	}
 
-	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
+	allowed, err := g.enforcer.Allowed(ctx, in.Agent, PolicyTargetOrchestrator)
 	if err != nil {
 		return nil, failTaskOut{}, fmt.Errorf("gateway: policy check: %w", err)
 	}
@@ -242,7 +242,7 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 		EnvelopeID: doc.ID,
 		ThreadID:   doc.ThreadID,
 		FromAgent:  in.Agent,
-		ToAgent:    "orchestrator",
+		ToAgent:    PolicyTargetOrchestrator,
 		MsgType:    string(protocol.TaskFail),
 		Direction:  "send",
 		ToolName:   "fail_task",
@@ -363,7 +363,7 @@ func (g *Gateway) handleReceiveMessage(ctx context.Context, _ *mcpsdk.CallToolRe
 		return nil, receiveMessageOut{}, err
 	}
 
-	allowed, err := g.enforcer.Allowed(ctx, in.Agent, "orchestrator")
+	allowed, err := g.enforcer.Allowed(ctx, in.Agent, PolicyTargetOrchestrator)
 	if err != nil {
 		return nil, receiveMessageOut{}, fmt.Errorf("gateway: policy check: %w", err)
 	}

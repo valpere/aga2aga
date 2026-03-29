@@ -108,7 +108,10 @@ Expected response: `{ "status": "ok" }`
 |-------------|-------|
 | aga2aga gateway running | See [RUNNING.md](RUNNING.md) for setup |
 | Agent registered in Admin UI | See below — register the agent, then create an agent key |
-| Policy entry allowing the agent | Admin UI → Policies → allow `<your-agent-id>` → `orchestrator` |
+| Policy entry for orchestration tools | Admin UI → Policies → allow `<your-agent-id>` → `orchestrator` (required for `get_task`, `complete_task`, `fail_task`, `receive_message`) |
+| Policy entry for messaging | Admin UI → Policies → allow `<your-agent-id>` → `<peer-agent-id>` (required for `send_message`) |
+
+> **`orchestrator` target:** This is a built-in system target — not a registered agent. It represents the task and message infrastructure layer. The four tools above check the policy `<agent> → orchestrator` on every call. Select it directly from the Target dropdown in the Policies form.
 
 ### Authentication
 

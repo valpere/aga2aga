@@ -189,13 +189,17 @@ The gateway exposes eight MCP tools:
 
 ### Agent policies
 
-By default the gateway uses **deny-by-default** policy evaluation. Before an agent can call `get_task`, add a policy in the Admin UI:
+By default the gateway uses **deny-by-default** policy evaluation. Add policies in Admin UI → **Policies** → **New Policy**:
 
-1. Go to **Policies** → **New Policy**.
-2. Set Source to the agent ID (e.g. `my-agent`), Target to `*` (wildcard), Action to `allow`.
-3. Save.
+| What you want to allow | Source | Target | Notes |
+|---|---|---|---|
+| Agent uses tasks + inbox | `<agent-id>` | `orchestrator` | Required for `get_task`, `complete_task`, `fail_task`, `receive_message` |
+| Agent sends messages to a peer | `<agent-id>` | `<peer-agent-id>` | Required for `send_message` |
+| All agents use everything | `*` | `*` | Convenient for dev; too broad for production |
 
-Without a matching policy, `get_task` returns a policy-denied error.
+`orchestrator` is a built-in target in the Target dropdown — it represents the task and message infrastructure layer, not a registered agent.
+
+Without a matching policy, tool calls return a policy-denied error.
 
 ---
 
