@@ -46,7 +46,7 @@ validate:
 VERSION ?= $(shell git rev-parse --short HEAD)
 
 # Load ADMIN_API_KEY and other secrets from .env.local automatically.
-# All docker compose targets use docker-compose.local.yml (ports 8087/3001/6380).
+# All docker compose targets use docker/docker-compose.local.yml (ports 8087/3001/6380).
 COMPOSE := docker compose -f docker/docker-compose.local.yml --env-file .env.local
 
 ## docker: build the gateway image tagged with git SHA and latest

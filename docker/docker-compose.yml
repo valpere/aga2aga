@@ -34,6 +34,8 @@ services:
   admin:
     image: aga2aga-admin
     build:
+      # context: .. points to the repo root (parent of docker/) so the Dockerfile
+      # can COPY go.mod, go.sum, and source from the module root.
       context: ..
       dockerfile: docker/Dockerfile.admin
     restart: unless-stopped
@@ -68,6 +70,8 @@ services:
   gateway:
     image: aga2aga-gateway
     build:
+      # context: .. points to the repo root (parent of docker/) so the Dockerfile
+      # can COPY go.mod, go.sum, and source from the module root.
       context: ..
       dockerfile: docker/Dockerfile
     restart: unless-stopped
