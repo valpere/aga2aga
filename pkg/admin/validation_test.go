@@ -25,9 +25,13 @@ func TestIsValidAgentID(t *testing.T) {
 		{"x.y", true},
 		{"a_b", true},
 
-		// Valid: exactly 2 chars
+		// Valid: exactly 2 chars (both must be alphanumeric)
 		{"ab", true},
-		{"a1", true},
+
+		// Invalid: 2-char strings ending with separator
+		{"a-", false},
+		{"a.", false},
+		{"a_", false},
 
 		// Valid: exactly 64 chars (max)
 		{"a" + repeat62("b") + "c", true},
