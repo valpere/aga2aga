@@ -151,13 +151,9 @@ func main() {
 	case "http":
 		gw.StartCleanup(ctx)
 
-		handler := mcpsdk.NewStreamableHTTPHandler(
-			func(_ *http.Request) *mcpsdk.Server { return gw.Server() },
-			nil,
-		)
 		httpSrv := &http.Server{
 			Addr:        *addr,
-			Handler:     handler,
+			Handler:     gateway.NewMCPHTTPHandler(gw.Server()),
 			ReadTimeout: 15 * time.Second,
 			// WriteTimeout is intentionally 0: SSE streams used by the MCP
 			// streamable-HTTP transport are long-lived responses. A non-zero
