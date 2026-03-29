@@ -58,6 +58,7 @@ type heartbeatOut struct {
 // --- tool handlers --------------------------------------------------------
 
 func (g *Gateway) handleGetTask(ctx context.Context, _ *mcpsdk.CallToolRequest, in getTaskIn) (*mcpsdk.CallToolResult, getTaskOut, error) {
+	in.Agent, in.APIKey = g.applyDefaults(in.Agent, in.APIKey)
 	if !admin.IsValidAgentID(in.Agent) {
 		return nil, getTaskOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
@@ -116,6 +117,7 @@ func (g *Gateway) handleGetTask(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 }
 
 func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequest, in completeTaskIn) (*mcpsdk.CallToolResult, completeTaskOut, error) {
+	in.Agent, in.APIKey = g.applyDefaults(in.Agent, in.APIKey)
 	if !admin.IsValidAgentID(in.Agent) {
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
@@ -183,6 +185,7 @@ func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequ
 }
 
 func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest, in failTaskIn) (*mcpsdk.CallToolResult, failTaskOut, error) {
+	in.Agent, in.APIKey = g.applyDefaults(in.Agent, in.APIKey)
 	if !admin.IsValidAgentID(in.Agent) {
 		return nil, failTaskOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
@@ -250,6 +253,7 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 }
 
 func (g *Gateway) handleHeartbeat(ctx context.Context, _ *mcpsdk.CallToolRequest, in heartbeatIn) (*mcpsdk.CallToolResult, heartbeatOut, error) {
+	in.Agent, in.APIKey = g.applyDefaults(in.Agent, in.APIKey)
 	// Verified by AgentAuthenticator when configured; full Ed25519 in Phase 3. CWE-287.
 	// When auth is enabled, agent must be identified — an unauthenticated probe cannot
 	// bypass the authentication gate via an empty agent field.
@@ -290,6 +294,7 @@ type receiveMessageOut struct {
 // --- send_message / receive_message handlers ------------------------------
 
 func (g *Gateway) handleSendMessage(ctx context.Context, _ *mcpsdk.CallToolRequest, in sendMessageIn) (*mcpsdk.CallToolResult, sendMessageOut, error) {
+	in.Agent, in.APIKey = g.applyDefaults(in.Agent, in.APIKey)
 	if !admin.IsValidAgentID(in.Agent) {
 		return nil, sendMessageOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
@@ -348,6 +353,7 @@ func (g *Gateway) handleSendMessage(ctx context.Context, _ *mcpsdk.CallToolReque
 }
 
 func (g *Gateway) handleReceiveMessage(ctx context.Context, _ *mcpsdk.CallToolRequest, in receiveMessageIn) (*mcpsdk.CallToolResult, receiveMessageOut, error) {
+	in.Agent, in.APIKey = g.applyDefaults(in.Agent, in.APIKey)
 	if !admin.IsValidAgentID(in.Agent) {
 		return nil, receiveMessageOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
@@ -446,6 +452,7 @@ type policyInfo struct {
 // --- get_my_limits / get_my_policies handlers --------------------------------
 
 func (g *Gateway) handleGetMyLimits(ctx context.Context, _ *mcpsdk.CallToolRequest, in getMyLimitsIn) (*mcpsdk.CallToolResult, getMyLimitsOut, error) {
+	in.Agent, in.APIKey = g.applyDefaults(in.Agent, in.APIKey)
 	if !admin.IsValidAgentID(in.Agent) {
 		return nil, getMyLimitsOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}
@@ -467,6 +474,7 @@ func (g *Gateway) handleGetMyLimits(ctx context.Context, _ *mcpsdk.CallToolReque
 }
 
 func (g *Gateway) handleGetMyPolicies(ctx context.Context, _ *mcpsdk.CallToolRequest, in getMyPoliciesIn) (*mcpsdk.CallToolResult, getMyPoliciesOut, error) {
+	in.Agent, in.APIKey = g.applyDefaults(in.Agent, in.APIKey)
 	if !admin.IsValidAgentID(in.Agent) {
 		return nil, getMyPoliciesOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
 	}

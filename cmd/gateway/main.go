@@ -105,6 +105,25 @@ func main() {
 	cfg.TaskReadTimeout = *taskReadTimeout
 	cfg.PendingTTL = *pendingTTL
 
+	// AGA2AGA_AGENT_NAME / AGA2AGA_API_KEY: stdio-only defaults for tool call fields.
+	// In HTTP transport a single gateway process serves multiple agents, so a single
+	// identity default would be a security defect — zero both fields and warn.
+	cfg.DefaultAgentName = os.Getenv("AGA2AGA_AGENT_NAME")
+	cfg.DefaultAgentKey = os.Getenv("AGA2AGA_API_KEY")
+	if *mcpTransport == "http" {
+		if cfg.DefaultAgentName != "" {
+			log.Printf("warning: AGA2AGA_AGENT_NAME is ignored in HTTP transport mode " +
+				"(single-identity defaults are unsafe when multiple agents share one gateway)")
+		}
+		if cfg.DefaultAgentKey != "" {
+			// Log presence only — never the value (CWE-532).
+			log.Printf("warning: AGA2AGA_API_KEY is set but will NOT be used in HTTP transport mode; " +
+				"callers that omit api_key will be rejected when --require-agent-key is enabled")
+		}
+		cfg.DefaultAgentName = ""
+		cfg.DefaultAgentKey = ""
+	}
+
 	// Message logger (nil-safe: New treats nil as NoopMessageLogger).
 	msgLogger, closeMsgLogger := mustMessageLogger(*messageLog, *policyMode, *adminDB, *adminURL, *adminAPIKey, *gatewayOrgID)
 	if closeMsgLogger != nil {

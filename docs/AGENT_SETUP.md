@@ -111,8 +111,8 @@ Expected response: `{ "status": "ok" }`
 ### Authentication
 
 > **Two kinds of credentials — don't mix them up:**
-> - **`ADMIN_API_KEY`** — used by the **gateway process** to authenticate with the Admin API. Goes in the gateway's startup environment (`env:` block in stdio config). Agents never need this.
-> - **`api_key`** — used by **agents** in each MCP tool call argument. Created in Admin UI → API Keys with `role=agent`.
+> - **`ADMIN_API_KEY`** — used by the **gateway process** to authenticate with the Admin API (only needed when `--policy-mode=remote`). Agents never need this key.
+> - **`api_key`** — used by **agents** in each MCP tool call argument. Created in Admin UI → API Keys with `role=agent`. In stdio transport, set `AGA2AGA_API_KEY` in the subprocess env block instead of repeating it in every call.
 
 When the gateway runs with `--require-agent-key`, every MCP tool call must include a valid API key bound to the calling agent.
 
@@ -142,6 +142,19 @@ The gateway verifies:
 **Without `--require-agent-key`** (default), `api_key` is accepted but not checked. All self-reported agent IDs are trusted. This is backward-compatible but provides no identity assurance beyond policy checks. Enable `--require-agent-key` once all agents have keys provisioned.
 
 > **Security note:** Agent keys are a Phase 2.5 bridge. Full Ed25519 cryptographic identity verification is planned for Phase 3.
+
+### Agent credentials via environment (stdio only)
+
+In stdio transport each agent runs its own gateway subprocess. You can set these environment variables in the `.mcp.json` `env:` block once, and the gateway will fill them in automatically for every tool call that omits the field:
+
+| Variable | Fills in field | Notes |
+|----------|---------------|-------|
+| `AGA2AGA_AGENT_NAME` | `agent` | Agent identity — must match the key's bound agent ID |
+| `AGA2AGA_API_KEY` | `api_key` | Raw key copied from Admin UI → API Keys |
+
+Explicit values in a tool call always take precedence over the env defaults. Both variables are silently ignored (with a startup warning) when using HTTP transport — in that mode each agent must pass its credentials in every tool call.
+
+> **Gitignore:** Any config file containing `AGA2AGA_API_KEY` must be listed in `.gitignore` — it holds a raw secret.
 
 ---
 
@@ -188,20 +201,23 @@ Place `.mcp.json` in the project root (or `~/.claude.json` for user-level config
       "args": [
         "--mcp-transport",     "stdio",
         "--redis-addr",        "localhost:6379",
-        "--policy-mode",       "remote",
-        "--admin-url",         "http://localhost:8087",
+        "--policy-mode",       "embedded",
+        "--admin-db",          "/path/to/admin.db",
         "--agent-id",          "mcp-gateway",
         "--task-read-timeout", "10s",
         "--enforce-limits",
         "--gateway-org-id",    "default"
       ],
       "env": {
-        "ADMIN_API_KEY": "aga2_op_abc123..."
+        "AGA2AGA_AGENT_NAME": "my-agent-01",
+        "AGA2AGA_API_KEY":    "aga2_ag_..."
       }
     }
   }
 }
 ```
+
+`--policy-mode=embedded` reads the local SQLite database directly — no `ADMIN_API_KEY` needed, and the operator secret never touches the agent's config file. Add this file to `.gitignore` since it contains `AGA2AGA_API_KEY`.
 
 The `"type": "stdio"` field is optional when `"command"` is present.
 
@@ -249,8 +265,8 @@ command = "/usr/local/bin/aga2aga-gateway"
 args = [
   "--mcp-transport",     "stdio",
   "--redis-addr",        "localhost:6379",
-  "--policy-mode",       "remote",
-  "--admin-url",         "http://localhost:8087",
+  "--policy-mode",       "embedded",
+  "--admin-db",          "/path/to/admin.db",
   "--agent-id",          "mcp-gateway",
   "--task-read-timeout", "10s",
   "--enforce-limits",
@@ -258,8 +274,11 @@ args = [
 ]
 
 [mcp_servers.aga2aga.env]
-ADMIN_API_KEY = "aga2_op_abc123..."
+AGA2AGA_AGENT_NAME = "my-agent-01"
+AGA2AGA_API_KEY    = "aga2_ag_..."
 ```
+
+Add this config file to `.gitignore` since it contains `AGA2AGA_API_KEY`.
 
 #### HTTP transport
 
@@ -289,20 +308,23 @@ Place config at `.gemini/settings.json` (project) or `~/.gemini/settings.json` (
       "args": [
         "--mcp-transport",     "stdio",
         "--redis-addr",        "localhost:6379",
-        "--policy-mode",       "remote",
-        "--admin-url",         "http://localhost:8087",
+        "--policy-mode",       "embedded",
+        "--admin-db",          "/path/to/admin.db",
         "--agent-id",          "mcp-gateway",
         "--task-read-timeout", "10s",
         "--enforce-limits",
         "--gateway-org-id",    "default"
       ],
       "env": {
-        "ADMIN_API_KEY": "aga2_op_abc123..."
+        "AGA2AGA_AGENT_NAME": "my-agent-01",
+        "AGA2AGA_API_KEY":    "aga2_ag_..."
       }
     }
   }
 }
 ```
+
+Add this config file to `.gitignore` since it contains `AGA2AGA_API_KEY`.
 
 #### HTTP transport
 
@@ -347,20 +369,23 @@ Key differences from Claude Code:
         "/usr/local/bin/aga2aga-gateway",
         "--mcp-transport",     "stdio",
         "--redis-addr",        "localhost:6379",
-        "--policy-mode",       "remote",
-        "--admin-url",         "http://localhost:8087",
+        "--policy-mode",       "embedded",
+        "--admin-db",          "/path/to/admin.db",
         "--agent-id",          "mcp-gateway",
         "--task-read-timeout", "10s",
         "--enforce-limits",
         "--gateway-org-id",    "default"
       ],
       "environment": {
-        "ADMIN_API_KEY": "aga2_op_abc123..."
+        "AGA2AGA_AGENT_NAME": "my-agent-01",
+        "AGA2AGA_API_KEY":    "aga2_ag_..."
       }
     }
   }
 }
 ```
+
+Add this config file to `.gitignore` since it contains `AGA2AGA_API_KEY`.
 
 #### HTTP transport
 
@@ -850,15 +875,16 @@ All flags for `aga2aga-gateway`. Boolean flags (e.g. `--enforce-limits`) can be 
       "args": [
         "--mcp-transport",     "stdio",
         "--redis-addr",        "localhost:6379",
-        "--policy-mode",       "remote",
-        "--admin-url",         "http://localhost:8087",
+        "--policy-mode",       "embedded",
+        "--admin-db",          "/path/to/admin.db",
         "--task-read-timeout", "10s",
         "--agent-id",          "mcp-gateway",
         "--enforce-limits",
         "--gateway-org-id",    "default"
       ],
       "env": {
-        "ADMIN_API_KEY": "aga2_op_abc123..."
+        "AGA2AGA_AGENT_NAME": "claude-code-01",
+        "AGA2AGA_API_KEY":    "aga2_ag_..."
       }
     }
   }
@@ -883,8 +909,8 @@ command = "/usr/local/bin/aga2aga-gateway"
 args = [
   "--mcp-transport",     "stdio",
   "--redis-addr",        "localhost:6379",
-  "--policy-mode",       "remote",
-  "--admin-url",         "http://localhost:8087",
+  "--policy-mode",       "embedded",
+  "--admin-db",          "/path/to/admin.db",
   "--task-read-timeout", "10s",
   "--agent-id",          "mcp-gateway",
   "--enforce-limits",
@@ -892,7 +918,8 @@ args = [
 ]
 
 [mcp_servers.aga2aga.env]
-ADMIN_API_KEY = "aga2_op_abc123..."
+AGA2AGA_AGENT_NAME = "codex-01"
+AGA2AGA_API_KEY    = "aga2_ag_..."
 ```
 
 ---
@@ -909,15 +936,16 @@ ADMIN_API_KEY = "aga2_op_abc123..."
       "args": [
         "--mcp-transport",     "stdio",
         "--redis-addr",        "localhost:6379",
-        "--policy-mode",       "remote",
-        "--admin-url",         "http://localhost:8087",
+        "--policy-mode",       "embedded",
+        "--admin-db",          "/path/to/admin.db",
         "--task-read-timeout", "10s",
         "--agent-id",          "mcp-gateway",
         "--enforce-limits",
         "--gateway-org-id",    "default"
       ],
       "env": {
-        "ADMIN_API_KEY": "aga2_op_abc123..."
+        "AGA2AGA_AGENT_NAME": "gemini-01",
+        "AGA2AGA_API_KEY":    "aga2_ag_..."
       }
     }
   }
@@ -940,15 +968,16 @@ ADMIN_API_KEY = "aga2_op_abc123..."
         "/usr/local/bin/aga2aga-gateway",
         "--mcp-transport",     "stdio",
         "--redis-addr",        "localhost:6379",
-        "--policy-mode",       "remote",
-        "--admin-url",         "http://localhost:8087",
+        "--policy-mode",       "embedded",
+        "--admin-db",          "/path/to/admin.db",
         "--task-read-timeout", "10s",
         "--agent-id",          "mcp-gateway",
         "--enforce-limits",
         "--gateway-org-id",    "default"
       ],
       "environment": {
-        "ADMIN_API_KEY": "aga2_op_abc123..."
+        "AGA2AGA_AGENT_NAME": "opencode-01",
+        "AGA2AGA_API_KEY":    "aga2_ag_..."
       }
     }
   }
