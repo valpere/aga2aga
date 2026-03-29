@@ -90,7 +90,7 @@ func (srv *Server) Handler() http.Handler {
 	mux.Handle("GET /limits", protected(http.HandlerFunc(srv.handleLimitsList)))
 	mux.Handle("GET /limits/new", protected(http.HandlerFunc(srv.handleLimitsNewGet)))
 	mux.Handle("POST /limits/new", protected(requireRole(admin.RoleOperator, srv.handleLimitsNewPost)))
-	mux.Handle("GET /limits/{id}/edit", protected(http.HandlerFunc(srv.handleLimitsEditGet)))
+	mux.Handle("GET /limits/{id}/edit", protected(requireRole(admin.RoleOperator, srv.handleLimitsEditGet)))
 	mux.Handle("POST /limits/{id}/edit", protected(requireRole(admin.RoleOperator, srv.handleLimitsEditPost)))
 	mux.Handle("POST /limits/{id}/delete", protected(requireRole(admin.RoleOperator, srv.handleLimitsDelete)))
 

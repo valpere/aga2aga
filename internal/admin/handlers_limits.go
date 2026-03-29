@@ -160,8 +160,11 @@ func (srv *Server) handleLimitsDelete(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/limits/check?agent=<agentID>
 func (srv *Server) handleAPILimitsCheck(w http.ResponseWriter, r *http.Request) {
 	k := srv.apiKeyFromRequest(r)
-	// SECURITY: only agent keys may query their own effective limits (CWE-285).
-	if k == nil || k.Role != admin.RoleAgent {
+	// SECURITY: this endpoint is a gateway-service call used by HTTPLimitEnforcer
+	// (Phase 3). Require operator or admin — individual agent keys must not probe
+	// the limits of other agents (CWE-285). Agents query their own limits via the
+	// get_my_limits MCP tool instead.
+	if k == nil || (k.Role != admin.RoleOperator && k.Role != admin.RoleAdmin) {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
@@ -200,8 +203,12 @@ func (srv *Server) handleAPILimitsCheck(w http.ResponseWriter, r *http.Request) 
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// formInt reads an integer form value, returning 0 on parse failure.
+// formInt reads a non-negative integer form value.
+// Returns 0 on parse failure or negative input (0 = unlimited). (CWE-20)
 func formInt(r *http.Request, key string) int {
 	v, _ := strconv.Atoi(r.FormValue(key))
+	if v < 0 {
+		return 0
+	}
 	return v
 }

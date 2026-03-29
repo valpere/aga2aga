@@ -42,7 +42,8 @@ func TestHandleAPILimitsCheck_NoKey(t *testing.T) {
 	}
 }
 
-// TestHandleAPILimitsCheck_AgentKey returns limits for a valid agent key.
+// TestHandleAPILimitsCheck_OperatorKey returns limits for a valid operator key.
+// (This endpoint is a gateway-service call; agent keys are not authorized.)
 func TestHandleAPILimitsCheck_AgentKey(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
@@ -55,10 +56,10 @@ func TestHandleAPILimitsCheck_AgentKey(t *testing.T) {
 	}
 	_ = s.CreateUser(ctx, u)
 
-	rawKey := "lc-agent-key-001"
+	rawKey := "lc-operator-key-001"
 	k := &admin.APIKey{
-		ID: "key-lc-1", OrgID: "org-lc-1", Name: "agent-key",
-		KeyHash: hashKey(rawKey), Role: admin.RoleAgent, AgentID: "agent-lc",
+		ID: "key-lc-1", OrgID: "org-lc-1", Name: "operator-key",
+		KeyHash: hashKey(rawKey), Role: admin.RoleOperator,
 		CreatedBy: "usr-lc-1", CreatedAt: time.Now().UTC(),
 	}
 	_ = s.CreateAPIKey(ctx, k)
@@ -110,10 +111,10 @@ func TestHandleAPILimitsCheck_NoLimitsConfigured(t *testing.T) {
 	}
 	_ = s.CreateUser(ctx, u)
 
-	rawKey := "lc-agent-key-002"
+	rawKey := "lc-operator-key-002"
 	k := &admin.APIKey{
-		ID: "key-lc-2", OrgID: "org-lc-2", Name: "agent-key",
-		KeyHash: hashKey(rawKey), Role: admin.RoleAgent, AgentID: "agent-lc2",
+		ID: "key-lc-2", OrgID: "org-lc-2", Name: "operator-key",
+		KeyHash: hashKey(rawKey), Role: admin.RoleOperator,
 		CreatedBy: "usr-lc-2", CreatedAt: time.Now().UTC(),
 	}
 	_ = s.CreateAPIKey(ctx, k)
@@ -142,7 +143,7 @@ func TestHandleAPILimitsCheck_NoLimitsConfigured(t *testing.T) {
 	}
 }
 
-// TestHandleAPILimitsCheck_WrongRole rejects non-agent API keys.
+// TestHandleAPILimitsCheck_WrongRole rejects agent-role API keys (only operator/admin allowed).
 func TestHandleAPILimitsCheck_WrongRole(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
@@ -155,22 +156,22 @@ func TestHandleAPILimitsCheck_WrongRole(t *testing.T) {
 	}
 	_ = s.CreateUser(ctx, u)
 
-	rawKey := "lc-operator-key-001"
+	rawKey := "lc-agent-key-003"
 	k := &admin.APIKey{
-		ID: "key-lc-3", OrgID: "org-lc-3", Name: "operator-key",
-		KeyHash: hashKey(rawKey), Role: admin.RoleOperator,
+		ID: "key-lc-3", OrgID: "org-lc-3", Name: "agent-key",
+		KeyHash: hashKey(rawKey), Role: admin.RoleAgent, AgentID: "agent-lc3",
 		CreatedBy: "usr-lc-3", CreatedAt: time.Now().UTC(),
 	}
 	_ = s.CreateAPIKey(ctx, k)
 
 	h := newTestHandler(t, s)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/limits/check?agent=agent-x", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/limits/check?agent=agent-lc3", nil)
 	req.Header.Set("Authorization", "Bearer "+rawKey)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want 401 (operator key must not access limits check)", w.Code)
+		t.Errorf("status = %d, want 401 (agent key must not access limits check endpoint)", w.Code)
 	}
 }
 

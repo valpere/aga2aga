@@ -60,6 +60,12 @@ func (noopLimitEnforcer) GetEffectiveLimits(_ context.Context, _ string) (*Limit
 
 const defaultLimitCacheTTL = 30 * time.Second
 
+// maxMapEntries caps the number of per-agent entries in the cache and rate
+// maps to prevent unbounded memory growth under high agent-ID cardinality or
+// adversarial inputs (CWE-400). When the ceiling is hit, new agents get a
+// throwaway bucket (permissive) or are cache-miss-fetched on every call.
+const maxMapEntries = 10_000
+
 // EmbeddedLimitEnforcer enforces limits in-process using a LimitStore.
 // Effective limits are cached per agent for cacheTTL (default 30s) to avoid
 // a SQLite round-trip per message. The rate counter is an in-memory
@@ -85,7 +91,11 @@ type rateBucket struct {
 	sends     []time.Time
 }
 
-func (rb *rateBucket) count() int {
+// tryRecord checks whether a new send is within the rate limit and, if so,
+// records it atomically. Returns true if the send is allowed.
+// limit==0 means unlimited. This single-lock operation closes the TOCTOU
+// window that exists when count() and record() are called separately (CWE-362).
+func (rb *rateBucket) tryRecord(limit int) bool {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 	cutoff := time.Now().Add(-time.Minute)
@@ -96,14 +106,13 @@ func (rb *rateBucket) count() int {
 		}
 	}
 	rb.sends = fresh
-	return len(rb.sends)
+	if limit > 0 && len(rb.sends) >= limit {
+		return false
+	}
+	rb.sends = append(rb.sends, time.Now())
+	return true
 }
 
-func (rb *rateBucket) record() {
-	rb.mu.Lock()
-	rb.sends = append(rb.sends, time.Now())
-	rb.mu.Unlock()
-}
 
 // NewEmbeddedLimitEnforcer creates an EmbeddedLimitEnforcer with the default
 // cache TTL (30s).
@@ -137,7 +146,10 @@ func (e *EmbeddedLimitEnforcer) effectiveLimits(ctx context.Context, agentID str
 	l, _ := e.store.GetEffectiveLimits(ctx, e.orgID, agentID)
 
 	e.mu.Lock()
-	e.cache[agentID] = limitCacheEntry{limits: l, fetchAt: time.Now()}
+	// Only cache if below the entry ceiling (CWE-400).
+	if len(e.cache) < maxMapEntries {
+		e.cache[agentID] = limitCacheEntry{limits: l, fetchAt: time.Now()}
+	}
 	e.mu.Unlock()
 	return l
 }
@@ -145,12 +157,22 @@ func (e *EmbeddedLimitEnforcer) effectiveLimits(ctx context.Context, agentID str
 func (e *EmbeddedLimitEnforcer) bucket(agentID string) *rateBucket {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if _, ok := e.rate[agentID]; !ok {
-		e.rate[agentID] = &rateBucket{}
+	if b, ok := e.rate[agentID]; ok {
+		return b
 	}
-	return e.rate[agentID]
+	// Return a throwaway bucket once the ceiling is reached so the map does
+	// not grow without bound under adversarial agent-ID cardinality (CWE-400).
+	if len(e.rate) >= maxMapEntries {
+		return &rateBucket{}
+	}
+	b := &rateBucket{}
+	e.rate[agentID] = b
+	return b
 }
 
+// CheckSend atomically checks and records the send in a single bucket operation,
+// eliminating the TOCTOU window that would exist if check and record were separate
+// calls (CWE-362). The body-size check is purely read-only (no state change needed).
 func (e *EmbeddedLimitEnforcer) CheckSend(ctx context.Context, agentID string, bodySize int) error {
 	l := e.effectiveLimits(ctx, agentID)
 	if l == nil {
@@ -161,7 +183,7 @@ func (e *EmbeddedLimitEnforcer) CheckSend(ctx context.Context, agentID string, b
 			bodySize, l.MaxBodyBytes, agentID)
 	}
 	if l.MaxSendPerMin > 0 {
-		if e.bucket(agentID).count() >= l.MaxSendPerMin {
+		if !e.bucket(agentID).tryRecord(l.MaxSendPerMin) {
 			return fmt.Errorf("gateway/limits: send rate limit %d/min exceeded for agent %q",
 				l.MaxSendPerMin, agentID)
 		}
@@ -169,9 +191,10 @@ func (e *EmbeddedLimitEnforcer) CheckSend(ctx context.Context, agentID string, b
 	return nil
 }
 
-func (e *EmbeddedLimitEnforcer) RecordSend(_ context.Context, agentID string) {
-	e.bucket(agentID).record()
-}
+// RecordSend is a no-op on EmbeddedLimitEnforcer because CheckSend already
+// records atomically via tryRecord. Kept in the interface for the noop and
+// HTTP stub implementations.
+func (e *EmbeddedLimitEnforcer) RecordSend(_ context.Context, _ string) {}
 
 func (e *EmbeddedLimitEnforcer) CheckPendingTasks(ctx context.Context, agentID string, currentPending int) error {
 	l := e.effectiveLimits(ctx, agentID)

@@ -23,6 +23,10 @@ type PolicyEnforcer interface {
 // agent to retrieve the policies that apply to it. Implementors that have
 // access to a PolicyStore satisfy this interface; the gateway type-asserts
 // g.enforcer.(PolicyQuerier) in the get_my_policies tool handler.
+//
+// Implementations that wrap another PolicyEnforcer MUST also implement
+// PolicyQuerier by delegating to the inner enforcer (if it satisfies
+// PolicyQuerier), or agents will silently receive an empty policy list.
 type PolicyQuerier interface {
 	// ListPoliciesFor returns all policies where source_id == agentID,
 	// target_id == agentID, or source_id == "*" / target_id == "*".
