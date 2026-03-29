@@ -102,6 +102,33 @@ type AuditEvent struct {
 	CreatedAt  time.Time `db:"created_at"`
 }
 
+// MessageLog records a single inter-agent message exchanged through the gateway.
+// Full body is stored for offline analysis; entries are append-only.
+type MessageLog struct {
+	ID         string    `db:"id"`
+	OrgID      string    `db:"org_id"`
+	EnvelopeID string    `db:"envelope_id"` // Document.ID; may be empty
+	ThreadID   string    `db:"thread_id"`   // Document.ThreadID; may be empty
+	FromAgent  string    `db:"from_agent"`
+	ToAgent    string    `db:"to_agent"`
+	MsgType    string    `db:"msg_type"`   // e.g. "agent.message", "task.request"
+	Direction  string    `db:"direction"`  // "send" | "receive"
+	ToolName   string    `db:"tool_name"`  // MCP tool that triggered the log
+	BodySize   int       `db:"body_size"`  // len(body) in bytes
+	Body       string    `db:"body"`       // full message body
+	CreatedAt  time.Time `db:"created_at"`
+}
+
+// MessageLogFilter constrains which MessageLog rows are returned by ListMessageLogs.
+// Zero values mean "no filter" for that field.
+type MessageLogFilter struct {
+	AgentID  string    // match from_agent OR to_agent
+	ToolName string    // exact match on tool_name
+	Since    time.Time // created_at >= Since (zero = no lower bound)
+	Until    time.Time // created_at <= Until (zero = no upper bound)
+	Limit    int       // max rows; 0 → default 200
+}
+
 // APIKey grants programmatic access to the admin API (e.g. the gateway).
 // The raw key is shown once at creation; only its SHA-256 hash is stored.
 type APIKey struct {

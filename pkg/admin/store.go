@@ -1,6 +1,9 @@
 package admin
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // UserStore persists and retrieves User records.
 type UserStore interface {
@@ -51,6 +54,14 @@ type APIKeyStore interface {
 	RevokeAPIKey(ctx context.Context, orgID, id string) error
 }
 
+// MessageLogStore appends and queries inter-agent message traffic.
+// Entries are append-only; Delete is a retention purge, not a soft-delete.
+type MessageLogStore interface {
+	AppendMessageLog(ctx context.Context, m *MessageLog) error
+	ListMessageLogs(ctx context.Context, orgID string, filter MessageLogFilter) ([]MessageLog, error)
+	DeleteMessageLogsBefore(ctx context.Context, orgID string, before time.Time) (int64, error)
+}
+
 // Store is the full persistence interface required by the admin server.
 type Store interface {
 	OrgStore
@@ -59,4 +70,5 @@ type Store interface {
 	PolicyStore
 	AuditStore
 	APIKeyStore
+	MessageLogStore
 }
