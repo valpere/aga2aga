@@ -111,8 +111,8 @@ pkg/transport/    Transport abstraction (Redis, Gossip)       (stub)
 pkg/identity/     Ed25519 identity and trust                  (stub)
 pkg/negotiation/  Negotiation protocol engine                 (stub)
 internal/admin/   Web admin HTTP handlers, middleware, SQLite store ← DONE (issue #86)
-internal/gateway/ MCP Gateway implementation                       ← DONE (#90, #91, #127)
-pkg/admin/        Admin domain types, Store interface, policy eval ← DONE (issue #86, #127)
+internal/gateway/ MCP Gateway implementation                       ← DONE (#90, #91, #127, #128)
+pkg/admin/        Admin domain types, Store interface, policy eval ← DONE (issue #86, #127, #128)
 docs/             All project documentation
 ```
 
@@ -139,15 +139,17 @@ docs/             All project documentation
 - Builder: `NewBuilder` + fluent setters (`ID`, `From`, `To`, `ExecID`, `TTL`, `Status`, `InReplyTo`, `ThreadID`, `Body`, `Field`); `Build()` runs full validation; sticky-error guard rejects reserved envelope keys in `Field()`
   - Convenience: `NewGenomeBuilder`, `NewSpawnProposalBuilder`, `NewTaskRequestBuilder`
 
-#### Implemented: pkg/transport/redis (#89)
+#### Implemented: pkg/transport/redis (#89, #128)
 
 - `RedisTransport` — `Publish`, `Subscribe`, `Ack`, `Close`; context on all I/O; wraps go-redis v9
+- `Publish` accepts variadic `transport.PublishOptions{MaxLen int64}` — when MaxLen>0, sets XADD MAXLEN ~ (approximate trim); backward-compatible
 - `PendingMap` — taskID → msgID mapping with configurable TTL-based cleanup goroutine; concurrent-safe
 
-#### Implemented: internal/gateway (#90, #91, #127) and cmd/gateway (#92, #127)
+#### Implemented: internal/gateway (#90, #91, #127, #128) and cmd/gateway (#92, #127, #128)
 
 - `PolicyEnforcer` interface — `Allowed(ctx, source, target string) (bool, error)`
-- `EmbeddedEnforcer` — in-process via `admin.PolicyStore.ListPolicies` + `admin.Evaluate`; default deny
+- `PolicyQuerier` interface (#128) — optional extension: `ListPoliciesFor(ctx, agentID string) ([]admin.CommunicationPolicy, error)`; type-asserted by `handleGetMyPolicies`; EmbeddedEnforcer satisfies both
+- `EmbeddedEnforcer` — in-process via `admin.PolicyStore.ListPolicies` + `admin.Evaluate`; default deny; `ListPoliciesFor` filters by source/target == agentID or "*"
 - `HTTPEnforcer` — remote `GET /api/v1/evaluate?source=X&target=Y` with Bearer token
   - `NewHTTPEnforcer(baseURL, token string) (*HTTPEnforcer, error)` — validates scheme (http/https) + non-empty host (CWE-918)
   - `io.LimitReader(4KiB)` on response body before JSON decode (CWE-400)
@@ -163,18 +165,25 @@ docs/             All project documentation
   - `EmbeddedMessageLogger` — buffered channel (cap 256) + single drain goroutine → `admin.MessageLogStore`; drops on full (WARN log); `Close()` blocks until goroutine exits
   - `HTTPMessageLogger` — fire-and-forget goroutines with semaphore (cap 32); `POST /api/v1/message-log`; URL validated (CWE-918); `NewHTTPMessageLogger(baseURL, token)` returns error on invalid URL
   - `MessageLogEntry` fields: `EnvelopeID`, `ThreadID`, `FromAgent`, `ToAgent`, `MsgType`, `Direction` ("send"|"receive"), `ToolName`, `BodySize`, `Body`
-- `Gateway` struct — wires MCP server, Transport, PendingMap, PolicyEnforcer, AgentAuthenticator (nil = legacy), MessageLogger
-- `New(t, e, auth, logger, cfg)` — creates Gateway with 6 MCP tools registered; auth may be nil; nil logger → NoopMessageLogger
+- `LimitEnforcer` interface (#128) — `CheckSend`, `RecordSend`, `CheckPendingTasks`, `GetStreamMaxLen`, `GetEffectiveLimits`; three implementations:
+  - `NoopLimitEnforcer` — zero-alloc allows all; used when `--enforce-limits=false`
+  - `EmbeddedLimitEnforcer` — wraps `admin.LimitStore`; per-agent 30s limit cache (max 10,000 entries, CWE-400); per-agent sliding-window rate counter via `rateBucket.tryRecord` (atomic TOCTOU-safe, CWE-362); `GetStreamMaxLen` returns cached `MaxStreamLen` for XADD MAXLEN
+  - `HTTPLimitEnforcer` — Phase 3 stub; delegates to noop
+- `PendingMap.CountByAgent(agentID)` (#128) — counts entries matching `agent.tasks.<agentID>` (for CheckPendingTasks)
+- `Gateway` struct — wires MCP server, Transport, PendingMap, PolicyEnforcer, AgentAuthenticator (nil = legacy), MessageLogger, LimitEnforcer (nil = noop)
+- `New(t, e, auth, logger, limiter, cfg)` — creates Gateway with 8 MCP tools registered; nil logger → NoopMessageLogger; nil limiter → NoopLimitEnforcer
 - `Run(ctx, mcpTransport)` — starts PendingMap cleanup, serves MCP over given transport
-- 6 tool handlers (each calls `authenticateAgent` before any work when auth is set; logs on success):
-  - `get_task`: validates agent ID → auth → policy check → subscribe → wait with timeout → store in PendingMap → log(direction="receive") → return
-  - `complete_task`: validates → auth → policy → body size cap → LoadAndDelete → build task.result → Publish → Ack → log(direction="send", toAgent="orchestrator")
-  - `fail_task`: same pattern, publishes to `agent.events.failed` → log(direction="send", toAgent="orchestrator")
+- 8 tool handlers (each calls `authenticateAgent` before any work when auth is set; logs on success):
+  - `get_task`: validates agent ID → auth → policy check → CheckPendingTasks → subscribe → wait with timeout → store in PendingMap → log(direction="receive") → return
+  - `complete_task`: validates → auth → policy → body size cap → CheckSend → LoadAndDelete → build task.result → Publish(MaxLen) → Ack → RecordSend → log(direction="send", toAgent="orchestrator")
+  - `fail_task`: same pattern, publishes to `agent.events.failed` → Publish(MaxLen) → RecordSend → log
   - `heartbeat`: auth (requires agent when auth enabled); returns `{status: "ok"}` (not logged — utility only)
-  - `send_message`: validates sender + recipient IDs → auth → policy(sender→recipient) → body size cap → build agent.message → Publish to `agent.messages.<recipient>` → log(direction="send")
+  - `send_message`: validates sender + recipient IDs → auth → policy(sender→recipient) → body size cap → CheckSend → build agent.message → Publish(MaxLen to recipient stream) → RecordSend → log(direction="send")
   - `receive_message`: validates → auth → policy(agent→orchestrator) → subscribe `agent.messages.<agent>` → wait with timeout → Ack immediately → log(direction="receive") → return `{from, body}`
+  - `get_my_limits` (#128): validates → auth → `limiter.GetEffectiveLimits` → return `{max_body_bytes, max_send_per_min, max_pending_tasks, max_stream_len}`
+  - `get_my_policies` (#128): validates → auth → type-assert PolicyQuerier → `ListPoliciesFor` → return `{policies:[...]}`; returns empty list when enforcer has no PolicyQuerier
 - Security: agent ID validated via `admin.IsValidAgentID` (canonical regex, CWE-20/CWE-74); `taskID = delivery.MsgID` (transport-layer ID, not attacker-controlled `Doc.ID`); body capped at `MaxDocumentBytes` (CWE-400); `authenticateAgent` uses `subtle.ConstantTimeCompare` for ID match (CWE-208); `export_test.go` pattern for `AuthenticateAgentForTest` (test-only, not compiled in production)
-- `cmd/gateway/main.go` (#92, #117, #127): 13 CLI flags; `--require-agent-key` (default false) wires auth; `--message-log` (default true) enables logging; `--gateway-org-id` (default "default") for multi-tenant; `mustAuthenticator`+`mustMessageLogger` return `(impl, func())` callbacks; ADMIN_API_KEY env var preferred over flag (CWE-214); LIFO defer; stdio + HTTP transports; `WriteTimeout:0` for SSE; graceful shutdown 10s; `filepath.EvalSymlinks` (CWE-22/61)
+- `cmd/gateway/main.go` (#92, #117, #127, #128): 14 CLI flags; `--require-agent-key` (default false) wires auth; `--message-log` (default true) enables logging; `--enforce-limits` (default false) enables limits; `--gateway-org-id` (default "default") for multi-tenant; `mustAuthenticator`+`mustMessageLogger`+`mustLimitEnforcer` return `(impl, func())` callbacks; ADMIN_API_KEY env var preferred over flag (CWE-214); LIFO defer; stdio + HTTP transports; `WriteTimeout:0` for SSE; graceful shutdown 10s; `filepath.EvalSymlinks` (CWE-22/61)
 - `PendingMap.StartCleanup` idempotent via `sync.Once` — safe to call from both `Gateway.Run()` (stdio) and `Gateway.StartCleanup()` (HTTP path) without spawning duplicate goroutines
 
 #### Implemented: pkg/transport, pkg/identity, pkg/negotiation (stubs)
