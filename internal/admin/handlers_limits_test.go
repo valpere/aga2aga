@@ -44,7 +44,7 @@ func TestHandleAPILimitsCheck_NoKey(t *testing.T) {
 
 // TestHandleAPILimitsCheck_OperatorKey returns limits for a valid operator key.
 // (This endpoint is a gateway-service call; agent keys are not authorized.)
-func TestHandleAPILimitsCheck_AgentKey(t *testing.T) {
+func TestHandleAPILimitsCheck_OperatorKey(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
 
