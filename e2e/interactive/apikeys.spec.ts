@@ -22,6 +22,7 @@ test.afterAll(async ({ browser }) => {
   const page = await context.newPage();
   await page.goto(`/agents/${agentID}`);
   await page.locator('form[action$="/revoke"] button').click();
+  await expect(page.locator('.badge-revoked')).toBeVisible();
   await context.close();
 });
 
