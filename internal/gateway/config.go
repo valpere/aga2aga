@@ -24,7 +24,8 @@ type Config struct {
 	DefaultAgentKey string
 }
 
-// String returns a human-readable Config summary safe for logging.
+// String returns a human-readable Config summary intended for logging and
+// debug output only — do not use for serialisation or persistence.
 // DefaultAgentKey is always redacted to prevent accidental credential exposure
 // when Config is formatted with %v or %+v (CWE-532).
 func (c Config) String() string {
