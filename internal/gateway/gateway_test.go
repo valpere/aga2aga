@@ -30,7 +30,7 @@ type noopEnforcer struct{}
 func (noopEnforcer) Allowed(_ context.Context, _, _ string) (bool, error) { return true, nil }
 
 func TestGateway_RegisterTools(t *testing.T) {
-	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.NewNoopMessageLogger(), gateway.DefaultConfig())
+	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.NewNoopMessageLogger(), gateway.NewNoopLimitEnforcer(), gateway.DefaultConfig())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -55,7 +55,7 @@ func TestGateway_RegisterTools(t *testing.T) {
 		names = append(names, tool.Name)
 	}
 
-	want := []string{"complete_task", "fail_task", "get_task", "heartbeat", "receive_message", "send_message"}
+	want := []string{"complete_task", "fail_task", "get_task", "get_my_limits", "get_my_policies", "heartbeat", "receive_message", "send_message"}
 	if len(names) != len(want) {
 		t.Errorf("registered %d tools; want %d: got %v", len(names), len(want), names)
 	}
@@ -74,14 +74,14 @@ func TestGateway_RegisterTools(t *testing.T) {
 }
 
 func TestGateway_Server_NotNil(t *testing.T) {
-	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.NewNoopMessageLogger(), gateway.DefaultConfig())
+	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.NewNoopMessageLogger(), gateway.NewNoopLimitEnforcer(), gateway.DefaultConfig())
 	if g.Server() == nil {
 		t.Error("Server() returned nil; want non-nil MCP server")
 	}
 }
 
 func TestGateway_StartCleanup_DoesNotBlock(t *testing.T) {
-	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.NewNoopMessageLogger(), gateway.DefaultConfig())
+	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.NewNoopMessageLogger(), gateway.NewNoopLimitEnforcer(), gateway.DefaultConfig())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan struct{})
@@ -98,7 +98,7 @@ func TestGateway_StartCleanup_DoesNotBlock(t *testing.T) {
 }
 
 func TestGateway_Run_ExitsOnContextCancel(t *testing.T) {
-	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.NewNoopMessageLogger(), gateway.DefaultConfig())
+	g := gateway.New(noopTransport{}, noopEnforcer{}, nil, gateway.NewNoopMessageLogger(), gateway.NewNoopLimitEnforcer(), gateway.DefaultConfig())
 
 	ctx, cancel := context.WithCancel(context.Background())
 

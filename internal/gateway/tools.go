@@ -9,6 +9,7 @@ import (
 	"github.com/valpere/aga2aga/pkg/admin"
 	"github.com/valpere/aga2aga/pkg/document"
 	"github.com/valpere/aga2aga/pkg/protocol"
+	"github.com/valpere/aga2aga/pkg/transport"
 )
 
 // --- input/output types for MCP tool handlers ----------------------------
@@ -75,6 +76,10 @@ func (g *Gateway) handleGetTask(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 		return nil, getTaskOut{}, fmt.Errorf("gateway: agent %q not allowed", in.Agent)
 	}
 
+	if err := g.limiter.CheckPendingTasks(ctx, in.Agent, g.pending.CountByAgent(in.Agent)); err != nil {
+		return nil, getTaskOut{}, err
+	}
+
 	topic := "agent.tasks." + in.Agent
 	ch, err := g.trans.Subscribe(ctx, topic)
 	if err != nil {
@@ -131,6 +136,9 @@ func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequ
 	if len(in.Result) > document.MaxDocumentBytes {
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: result body exceeds maximum size")
 	}
+	if err := g.limiter.CheckSend(ctx, in.Agent, len(in.Result)); err != nil {
+		return nil, completeTaskOut{}, err
+	}
 
 	topic, msgID, ok := g.pending.LoadAndDelete(in.TaskID)
 	if !ok {
@@ -150,7 +158,8 @@ func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequ
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: build result doc: %w", err)
 	}
 
-	if err := g.trans.Publish(ctx, "agent.events.completed", doc); err != nil {
+	maxLen := g.limiter.GetStreamMaxLen(ctx, in.Agent)
+	if err := g.trans.Publish(ctx, "agent.events.completed", doc, transport.PublishOptions{MaxLen: maxLen}); err != nil {
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: publish result: %w", err)
 	}
 
@@ -193,6 +202,9 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 	if len(in.Error) > document.MaxDocumentBytes {
 		return nil, failTaskOut{}, fmt.Errorf("gateway: error body exceeds maximum size")
 	}
+	if err := g.limiter.CheckSend(ctx, in.Agent, len(in.Error)); err != nil {
+		return nil, failTaskOut{}, err
+	}
 
 	topic, msgID, ok := g.pending.LoadAndDelete(in.TaskID)
 	if !ok {
@@ -212,7 +224,8 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 		return nil, failTaskOut{}, fmt.Errorf("gateway: build fail doc: %w", err)
 	}
 
-	if err := g.trans.Publish(ctx, "agent.events.failed", doc); err != nil {
+	maxLen := g.limiter.GetStreamMaxLen(ctx, in.Agent)
+	if err := g.trans.Publish(ctx, "agent.events.failed", doc, transport.PublishOptions{MaxLen: maxLen}); err != nil {
 		return nil, failTaskOut{}, fmt.Errorf("gateway: publish fail: %w", err)
 	}
 
@@ -298,6 +311,9 @@ func (g *Gateway) handleSendMessage(ctx context.Context, _ *mcpsdk.CallToolReque
 	if len(in.Body) > document.MaxDocumentBytes {
 		return nil, sendMessageOut{}, fmt.Errorf("gateway: message body exceeds maximum size")
 	}
+	if err := g.limiter.CheckSend(ctx, in.Agent, len(in.Body)); err != nil {
+		return nil, sendMessageOut{}, err
+	}
 
 	doc, err := document.NewBuilder(protocol.AgentMessage).
 		ID(uuid.New().String()).
@@ -309,9 +325,11 @@ func (g *Gateway) handleSendMessage(ctx context.Context, _ *mcpsdk.CallToolReque
 		return nil, sendMessageOut{}, fmt.Errorf("gateway: build message doc: %w", err)
 	}
 
-	if err := g.trans.Publish(ctx, "agent.messages."+in.To, doc); err != nil {
+	maxLen := g.limiter.GetStreamMaxLen(ctx, in.To)
+	if err := g.trans.Publish(ctx, "agent.messages."+in.To, doc, transport.PublishOptions{MaxLen: maxLen}); err != nil {
 		return nil, sendMessageOut{}, fmt.Errorf("gateway: publish message: %w", err)
 	}
+	g.limiter.RecordSend(ctx, in.Agent)
 
 	g.logger.Log(ctx, MessageLogEntry{
 		EnvelopeID: doc.ID,
@@ -385,4 +403,97 @@ func (g *Gateway) handleReceiveMessage(ctx context.Context, _ *mcpsdk.CallToolRe
 	case <-tctx.Done():
 		return nil, receiveMessageOut{}, nil
 	}
+}
+
+// --- get_my_limits / get_my_policies types ----------------------------------
+
+type getMyLimitsIn struct {
+	Agent  string `json:"agent"`
+	APIKey string `json:"api_key"`
+}
+
+// getMyLimitsOut mirrors LimitInfo as an MCP output struct.
+type getMyLimitsOut struct {
+	MaxBodyBytes    int   `json:"max_body_bytes"`
+	MaxSendPerMin   int   `json:"max_send_per_min"`
+	MaxPendingTasks int   `json:"max_pending_tasks"`
+	MaxStreamLen    int64 `json:"max_stream_len"`
+}
+
+type getMyPoliciesIn struct {
+	Agent  string `json:"agent"`
+	APIKey string `json:"api_key"`
+}
+
+// getMyPoliciesOut wraps the policy list in an object so the MCP SDK
+// can generate an "object" output schema.
+type getMyPoliciesOut struct {
+	Policies []policyInfo `json:"policies"`
+}
+
+// policyInfo is the JSON shape returned to agents by get_my_policies.
+type policyInfo struct {
+	ID        string `json:"id"`
+	SourceID  string `json:"source_id"`
+	TargetID  string `json:"target_id"`
+	Direction string `json:"direction"`
+	Action    string `json:"action"`
+	Priority  int    `json:"priority"`
+}
+
+// --- get_my_limits / get_my_policies handlers --------------------------------
+
+func (g *Gateway) handleGetMyLimits(ctx context.Context, _ *mcpsdk.CallToolRequest, in getMyLimitsIn) (*mcpsdk.CallToolResult, getMyLimitsOut, error) {
+	if !admin.IsValidAgentID(in.Agent) {
+		return nil, getMyLimitsOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
+	}
+	if err := g.authenticateAgent(ctx, in.Agent, in.APIKey); err != nil {
+		return nil, getMyLimitsOut{}, err
+	}
+
+	info, err := g.limiter.GetEffectiveLimits(ctx, in.Agent)
+	if err != nil {
+		return nil, getMyLimitsOut{}, fmt.Errorf("gateway: get limits: %w", err)
+	}
+
+	return nil, getMyLimitsOut{
+		MaxBodyBytes:    info.MaxBodyBytes,
+		MaxSendPerMin:   info.MaxSendPerMin,
+		MaxPendingTasks: info.MaxPendingTasks,
+		MaxStreamLen:    info.MaxStreamLen,
+	}, nil
+}
+
+func (g *Gateway) handleGetMyPolicies(ctx context.Context, _ *mcpsdk.CallToolRequest, in getMyPoliciesIn) (*mcpsdk.CallToolResult, getMyPoliciesOut, error) {
+	if !admin.IsValidAgentID(in.Agent) {
+		return nil, getMyPoliciesOut{}, fmt.Errorf("gateway: invalid agent id %q", in.Agent)
+	}
+	if err := g.authenticateAgent(ctx, in.Agent, in.APIKey); err != nil {
+		return nil, getMyPoliciesOut{}, err
+	}
+
+	querier, ok := g.enforcer.(PolicyQuerier)
+	if !ok {
+		// Enforcer does not support policy listing (e.g. HTTPEnforcer stub).
+		// Return empty list rather than an error — agents can proceed.
+		return nil, getMyPoliciesOut{Policies: []policyInfo{}}, nil
+	}
+
+	policies, err := querier.ListPoliciesFor(ctx, in.Agent)
+	if err != nil {
+		return nil, getMyPoliciesOut{}, fmt.Errorf("gateway: list policies: %w", err)
+	}
+
+	infos := make([]policyInfo, 0, len(policies))
+	for _, p := range policies {
+		infos = append(infos, policyInfo{
+			ID:        p.ID,
+			SourceID:  p.SourceID,
+			TargetID:  p.TargetID,
+			Direction: string(p.Direction),
+			Action:    string(p.Action),
+			Priority:  p.Priority,
+		})
+	}
+	return nil, getMyPoliciesOut{Policies: infos}, nil
 }

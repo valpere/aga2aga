@@ -284,3 +284,49 @@ func TestRedisTransport_Close_StopsSubscription(t *testing.T) {
 		t.Fatal("channel was not closed after Close()")
 	}
 }
+
+func TestRedisTransport_PublishWithMaxLen(t *testing.T) {
+	mr := miniredis.RunT(t)
+	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+
+	trans := redistransport.New(client, redistransport.Options{})
+	doc := buildTaskRequest(t)
+
+	// Publish 5 messages with MaxLen=3; stream should not exceed 3 entries.
+	for i := 0; i < 5; i++ {
+		if err := trans.Publish(context.Background(), "test.maxlen", doc,
+			transport.PublishOptions{MaxLen: 3}); err != nil {
+			t.Fatalf("Publish[%d]: %v", i, err)
+		}
+	}
+
+	entries, err := client.XLen(context.Background(), "test.maxlen").Result()
+	if err != nil {
+		t.Fatalf("XLen: %v", err)
+	}
+	if entries > 3 {
+		t.Errorf("stream length = %d, want ≤ 3 (MaxLen enforced)", entries)
+	}
+}
+
+func TestRedisTransport_PublishNoMaxLen(t *testing.T) {
+	mr := miniredis.RunT(t)
+	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+
+	trans := redistransport.New(client, redistransport.Options{})
+	doc := buildTaskRequest(t)
+
+	// Publish 5 with no options — all 5 should be present.
+	for i := 0; i < 5; i++ {
+		if err := trans.Publish(context.Background(), "test.nomaxlen", doc); err != nil {
+			t.Fatalf("Publish[%d]: %v", i, err)
+		}
+	}
+
+	entries, _ := client.XLen(context.Background(), "test.nomaxlen").Result()
+	if entries != 5 {
+		t.Errorf("stream length = %d, want 5 (unlimited)", entries)
+	}
+}

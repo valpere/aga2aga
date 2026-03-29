@@ -109,7 +109,7 @@ func main() {
 		defer closeMsgLogger()
 	}
 
-	gw := gateway.New(trans, enf, auth, msgLogger, cfg)
+	gw := gateway.New(trans, enf, auth, msgLogger, nil, cfg)
 
 	// Root context cancelled on SIGINT / SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

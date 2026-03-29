@@ -8,6 +8,7 @@ import (
 	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/valpere/aga2aga/pkg/admin"
 	"github.com/valpere/aga2aga/pkg/document"
 	"github.com/valpere/aga2aga/pkg/protocol"
 	"github.com/valpere/aga2aga/pkg/transport"
@@ -90,7 +91,7 @@ func newTestGateway(t *testing.T, trans transport.Transport, enf PolicyEnforcer)
 	t.Helper()
 	cfg := DefaultConfig()
 	cfg.TaskReadTimeout = 50 * time.Millisecond
-	return New(trans, enf, nil, NewNoopMessageLogger(), cfg)
+	return New(trans, enf, nil, NewNoopMessageLogger(), nil, cfg)
 }
 
 // newTestGatewayWithSpy builds a Gateway that records log entries via spyLogger.
@@ -99,7 +100,7 @@ func newTestGatewayWithSpy(t *testing.T, trans transport.Transport, enf PolicyEn
 	cfg := DefaultConfig()
 	cfg.TaskReadTimeout = 50 * time.Millisecond
 	spy := &spyLogger{}
-	return New(trans, enf, nil, spy, cfg), spy
+	return New(trans, enf, nil, spy, nil, cfg), spy
 }
 
 // --- heartbeat tests ------------------------------------------------------
@@ -911,5 +912,215 @@ func TestHandleReceiveMessage_Logs(t *testing.T) {
 	}
 	if entry.ToolName != "receive_message" {
 		t.Errorf("ToolName = %q, want receive_message", entry.ToolName)
+	}
+}
+
+// --- mocks for limits + policies tests -----------------------------------
+
+// mockLimitEnforcer records calls and returns configurable results.
+type mockLimitEnforcer struct {
+	checkSendErr       error
+	checkPendingErr    error
+	effectiveLimits    *LimitInfo
+	effectiveLimitsErr error
+}
+
+func (m *mockLimitEnforcer) CheckSend(_ context.Context, _ string, _ int) error {
+	return m.checkSendErr
+}
+func (m *mockLimitEnforcer) RecordSend(_ context.Context, _ string) {}
+func (m *mockLimitEnforcer) CheckPendingTasks(_ context.Context, _ string, _ int) error {
+	return m.checkPendingErr
+}
+func (m *mockLimitEnforcer) GetStreamMaxLen(_ context.Context, _ string) int64 { return 0 }
+func (m *mockLimitEnforcer) GetEffectiveLimits(_ context.Context, _ string) (*LimitInfo, error) {
+	return m.effectiveLimits, m.effectiveLimitsErr
+}
+
+// --- handleGetMyLimits tests -------------------------------------------
+
+func TestHandleGetMyLimits(t *testing.T) {
+	tests := []struct {
+		name            string
+		agent           string
+		limiterLimits   *LimitInfo
+		limiterErr      error
+		wantErr         bool
+		wantBodyBytes   int
+		wantSendPerMin  int
+		wantPendingTask int
+		wantStreamLen   int64
+	}{
+		{
+			name:  "invalid agent id",
+			agent: "!!bad",
+			wantErr: true,
+		},
+		{
+			name:       "limiter error",
+			agent:      "agent-a",
+			limiterErr: errors.New("db down"),
+			wantErr:    true,
+		},
+		{
+			name:  "returns effective limits",
+			agent: "agent-a",
+			limiterLimits: &LimitInfo{
+				MaxBodyBytes:    65536,
+				MaxSendPerMin:   60,
+				MaxPendingTasks: 10,
+				MaxStreamLen:    1000,
+			},
+			wantBodyBytes:   65536,
+			wantSendPerMin:  60,
+			wantPendingTask: 10,
+			wantStreamLen:   1000,
+		},
+		{
+			name:  "zero limits (unlimited)",
+			agent: "agent-a",
+			limiterLimits: &LimitInfo{},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lim := &mockLimitEnforcer{
+				effectiveLimits:    tc.limiterLimits,
+				effectiveLimitsErr: tc.limiterErr,
+			}
+			cfg := DefaultConfig()
+			cfg.TaskReadTimeout = 50 * time.Millisecond
+			g := New(
+				&mockTransport{ch: map[string]chan transport.Delivery{}},
+				&mockEnforcer{allowed: true},
+				nil,
+				NewNoopMessageLogger(),
+				lim,
+				cfg,
+			)
+
+			_, out, err := g.handleGetMyLimits(context.Background(), nil, getMyLimitsIn{Agent: tc.agent})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("handleGetMyLimits() error = %v; wantErr %v", err, tc.wantErr)
+			}
+			if tc.wantErr {
+				return
+			}
+			if out.MaxBodyBytes != tc.wantBodyBytes {
+				t.Errorf("MaxBodyBytes = %d; want %d", out.MaxBodyBytes, tc.wantBodyBytes)
+			}
+			if out.MaxSendPerMin != tc.wantSendPerMin {
+				t.Errorf("MaxSendPerMin = %d; want %d", out.MaxSendPerMin, tc.wantSendPerMin)
+			}
+			if out.MaxPendingTasks != tc.wantPendingTask {
+				t.Errorf("MaxPendingTasks = %d; want %d", out.MaxPendingTasks, tc.wantPendingTask)
+			}
+			if out.MaxStreamLen != tc.wantStreamLen {
+				t.Errorf("MaxStreamLen = %d; want %d", out.MaxStreamLen, tc.wantStreamLen)
+			}
+		})
+	}
+}
+
+// --- handleGetMyPolicies tests ----------------------------------------
+
+// queryingEnforcer wraps mockEnforcer and also satisfies PolicyQuerier.
+type queryingEnforcer struct {
+	allowed  bool
+	policies []admin.CommunicationPolicy
+	listErr  error
+}
+
+func (q *queryingEnforcer) Allowed(_ context.Context, _, _ string) (bool, error) {
+	return q.allowed, nil
+}
+func (q *queryingEnforcer) ListPoliciesFor(_ context.Context, _ string) ([]admin.CommunicationPolicy, error) {
+	return q.policies, q.listErr
+}
+
+func TestHandleGetMyPolicies(t *testing.T) {
+	tests := []struct {
+		name        string
+		agent       string
+		enforcer    PolicyEnforcer
+		wantErr     bool
+		wantLen     int
+		wantSource  string
+		wantTarget  string
+	}{
+		{
+			name:     "invalid agent id",
+			agent:    "!!bad",
+			enforcer: &mockEnforcer{allowed: true},
+			wantErr:  true,
+		},
+		{
+			name:     "enforcer does not implement PolicyQuerier",
+			agent:    "agent-a",
+			enforcer: &mockEnforcer{allowed: true},
+			wantLen:  0, // returns empty list, no error
+		},
+		{
+			name:  "querier returns error",
+			agent: "agent-a",
+			enforcer: &queryingEnforcer{
+				allowed: true,
+				listErr: errors.New("db error"),
+			},
+			wantErr: true,
+		},
+		{
+			name:  "returns matching policies",
+			agent: "agent-a",
+			enforcer: &queryingEnforcer{
+				allowed: true,
+				policies: []admin.CommunicationPolicy{
+					{
+						ID:        "pol-1",
+						SourceID:  "agent-a",
+						TargetID:  "*",
+						Direction: admin.DirectionBidirectional,
+						Action:    admin.PolicyActionAllow,
+						Priority:  10,
+					},
+				},
+			},
+			wantLen:    1,
+			wantSource: "agent-a",
+			wantTarget: "*",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.TaskReadTimeout = 50 * time.Millisecond
+			g := New(
+				&mockTransport{ch: map[string]chan transport.Delivery{}},
+				tc.enforcer,
+				nil,
+				NewNoopMessageLogger(),
+				nil,
+				cfg,
+			)
+
+			_, out, err := g.handleGetMyPolicies(context.Background(), nil, getMyPoliciesIn{Agent: tc.agent})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("handleGetMyPolicies() error = %v; wantErr %v", err, tc.wantErr)
+			}
+			if tc.wantErr {
+				return
+			}
+			if len(out.Policies) != tc.wantLen {
+				t.Fatalf("len(Policies) = %d; want %d", len(out.Policies), tc.wantLen)
+			}
+			if tc.wantLen > 0 {
+				if out.Policies[0].SourceID != tc.wantSource {
+					t.Errorf("SourceID = %q; want %q", out.Policies[0].SourceID, tc.wantSource)
+				}
+				if out.Policies[0].TargetID != tc.wantTarget {
+					t.Errorf("TargetID = %q; want %q", out.Policies[0].TargetID, tc.wantTarget)
+				}
+			}
+		})
 	}
 }
