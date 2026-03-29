@@ -19,9 +19,16 @@ func TestNewMCPHTTPHandler_OAuthDiscovery(t *testing.T) {
 	srv := httptest.NewServer(gateway.NewMCPHTTPHandler(g.Server()))
 	defer srv.Close()
 
+	// RFC 9728 appends the resource path to the discovery URL, so a client
+	// configured with http://host:port/mcp fetches /.well-known/…/mcp, not /.well-known/….
+	// All variants must return 404 so that clients skip OAuth entirely.
 	oauthPaths := []string{
 		"/.well-known/oauth-protected-resource",
+		"/.well-known/oauth-protected-resource/mcp",
 		"/.well-known/oauth-authorization-server",
+		"/.well-known/oauth-authorization-server/mcp",
+		"/.well-known/openid-configuration",
+		"/.well-known/openid-configuration/mcp",
 	}
 	for _, path := range oauthPaths {
 		resp, err := http.Get(srv.URL + path)
