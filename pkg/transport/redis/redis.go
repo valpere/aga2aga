@@ -72,15 +72,20 @@ func New(client *goredis.Client, opts Options) *RedisTransport {
 //
 // SECURITY: topic must be a statically known stream name. It MUST NOT be
 // derived from doc.Extra or any other attacker-controlled document field.
-func (rt *RedisTransport) Publish(ctx context.Context, topic string, doc *document.Document) error {
+func (rt *RedisTransport) Publish(ctx context.Context, topic string, doc *document.Document, opts ...transport.PublishOptions) error {
 	raw, err := document.Serialize(doc)
 	if err != nil {
 		return fmt.Errorf("transport/redis: serialize: %w", err)
 	}
-	if err := rt.client.XAdd(ctx, &goredis.XAddArgs{
+	args := &goredis.XAddArgs{
 		Stream: topic,
 		Values: map[string]any{"doc": string(raw)},
-	}).Err(); err != nil {
+	}
+	if len(opts) > 0 && opts[0].MaxLen > 0 {
+		args.MaxLen = opts[0].MaxLen
+		args.Approx = true
+	}
+	if err := rt.client.XAdd(ctx, args).Err(); err != nil {
 		return fmt.Errorf("transport/redis: xadd on %q: %w", topic, err)
 	}
 	return nil

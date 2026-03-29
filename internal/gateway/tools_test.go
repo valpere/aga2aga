@@ -31,7 +31,7 @@ type mockTransport struct {
 	acked        bool
 }
 
-func (m *mockTransport) Publish(_ context.Context, topic string, doc *document.Document) error {
+func (m *mockTransport) Publish(_ context.Context, topic string, doc *document.Document, _ ...transport.PublishOptions) error {
 	m.publishTopic = topic
 	m.publishDoc = doc
 	return m.publishErr

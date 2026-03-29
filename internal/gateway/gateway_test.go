@@ -15,7 +15,7 @@ import (
 // noopTransport satisfies transport.Transport with no-op operations.
 type noopTransport struct{}
 
-func (noopTransport) Publish(_ context.Context, _ string, _ *document.Document) error {
+func (noopTransport) Publish(_ context.Context, _ string, _ *document.Document, _ ...transport.PublishOptions) error {
 	return nil
 }
 func (noopTransport) Subscribe(_ context.Context, _ string) (<-chan transport.Delivery, error) {

@@ -79,6 +79,21 @@ func (pm *PendingMap) LoadAndDelete(taskID string) (topic, msgID string, ok bool
 	return e.topic, e.msgID, true
 }
 
+// CountByAgent returns the number of pending tasks for the given agentID.
+// It matches on the topic suffix "agent.tasks.<agentID>".
+func (pm *PendingMap) CountByAgent(agentID string) int {
+	topic := "agent.tasks." + agentID
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	count := 0
+	for _, e := range pm.entries {
+		if e.topic == topic {
+			count++
+		}
+	}
+	return count
+}
+
 // StartCleanup starts a background goroutine that sweeps entries older than ttl
 // every ttl/2. Effective maximum entry lifetime is therefore [ttl, 1.5*ttl).
 // ttl must be positive. It stops when ctx is cancelled.
