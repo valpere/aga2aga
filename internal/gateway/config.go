@@ -1,6 +1,9 @@
 package gateway
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Config holds runtime configuration for the Gateway.
 type Config struct {
@@ -19,6 +22,20 @@ type Config struct {
 	// that omits it. Set from AGA2AGA_API_KEY in stdio transport only.
 	// Must never appear in logs or error messages (CWE-532).
 	DefaultAgentKey string
+}
+
+// String returns a human-readable Config summary safe for logging.
+// DefaultAgentKey is always redacted to prevent accidental credential exposure
+// when Config is formatted with %v or %+v (CWE-532).
+func (c Config) String() string {
+	keyStatus := "<not set>"
+	if c.DefaultAgentKey != "" {
+		keyStatus = "<redacted>"
+	}
+	return fmt.Sprintf(
+		"Config{AgentID:%q DefaultAgentName:%q DefaultAgentKey:%s TaskReadTimeout:%v PendingTTL:%v}",
+		c.AgentID, c.DefaultAgentName, keyStatus, c.TaskReadTimeout, c.PendingTTL,
+	)
 }
 
 // DefaultConfig returns a Config with production-safe defaults.

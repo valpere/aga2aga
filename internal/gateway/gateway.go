@@ -74,17 +74,24 @@ func (g *Gateway) authenticateAgent(ctx context.Context, claimedAgent, rawKey st
 
 // applyDefaults fills zero-value agent and apiKey fields from Config defaults.
 // Explicit values in tool call arguments always take precedence.
+//
+// SECURITY: the default key is only injected when the agent field is also absent.
+// If the caller supplies an explicit agent ID they must supply their own api_key;
+// injecting the env default key for a caller-supplied agent ID would create an
+// information oracle (the auth error reveals whether a default key exists) and
+// could pair the wrong credential with the wrong identity (CWE-287).
 func (g *Gateway) applyDefaults(agent, apiKey string) (string, string) {
 	if agent == "" {
 		agent = g.cfg.DefaultAgentName
-	}
-	if apiKey == "" {
-		apiKey = g.cfg.DefaultAgentKey
+		// Only inject the default key in the fully-anonymous case (both fields absent).
+		if apiKey == "" {
+			apiKey = g.cfg.DefaultAgentKey
+		}
 	}
 	return agent, apiKey
 }
 
-// registerTools adds the 6 MCP tools to the server. Called once by New.
+// registerTools adds the 8 MCP tools to the server. Called once by New.
 func (g *Gateway) registerTools() {
 	mcpsdk.AddTool(g.server,
 		&mcpsdk.Tool{Name: "get_task", Description: "Fetch the next task from the agent's task stream."},
