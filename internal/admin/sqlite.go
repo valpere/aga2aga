@@ -102,6 +102,23 @@ CREATE TABLE IF NOT EXISTS communication_policies (
   created_by TEXT NOT NULL REFERENCES users(id),
   created_at DATETIME NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS message_logs (
+  id          TEXT PRIMARY KEY,
+  org_id      TEXT NOT NULL REFERENCES organizations(id),
+  envelope_id TEXT NOT NULL DEFAULT '',
+  thread_id   TEXT NOT NULL DEFAULT '',
+  from_agent  TEXT NOT NULL,
+  to_agent    TEXT NOT NULL,
+  msg_type    TEXT NOT NULL,
+  direction   TEXT NOT NULL,
+  tool_name   TEXT NOT NULL,
+  body_size   INTEGER NOT NULL DEFAULT 0,
+  body        TEXT NOT NULL DEFAULT '',
+  created_at  DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_message_logs_org_time  ON message_logs(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_message_logs_agent     ON message_logs(org_id, from_agent, to_agent);
 `)
 	if err != nil {
 		return err
@@ -473,4 +490,82 @@ func scanAPIKey(row *sql.Row) (*admin.APIKey, error) {
 		k.RevokedAt = parseRFC3339(revokedAt)
 	}
 	return &k, nil
+}
+
+// --- MessageLogStore ---
+
+const defaultMessageLogLimit = 200
+
+func (s *SQLiteStore) AppendMessageLog(ctx context.Context, m *admin.MessageLog) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO message_logs
+		 (id, org_id, envelope_id, thread_id, from_agent, to_agent, msg_type, direction, tool_name, body_size, body, created_at)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+		m.ID, m.OrgID, m.EnvelopeID, m.ThreadID,
+		m.FromAgent, m.ToAgent, m.MsgType, m.Direction, m.ToolName,
+		m.BodySize, m.Body, m.CreatedAt.Format(time.RFC3339),
+	)
+	return err
+}
+
+func (s *SQLiteStore) ListMessageLogs(ctx context.Context, orgID string, filter admin.MessageLogFilter) ([]admin.MessageLog, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = defaultMessageLogLimit
+	}
+
+	query := `SELECT id, org_id, envelope_id, thread_id, from_agent, to_agent,
+	                 msg_type, direction, tool_name, body_size, body, created_at
+	          FROM message_logs WHERE org_id=?`
+	args := []any{orgID}
+
+	if filter.AgentID != "" {
+		query += ` AND (from_agent=? OR to_agent=?)`
+		args = append(args, filter.AgentID, filter.AgentID)
+	}
+	if filter.ToolName != "" {
+		query += ` AND tool_name=?`
+		args = append(args, filter.ToolName)
+	}
+	if !filter.Since.IsZero() {
+		query += ` AND created_at >= ?`
+		args = append(args, filter.Since.Format(time.RFC3339))
+	}
+	if !filter.Until.IsZero() {
+		query += ` AND created_at <= ?`
+		args = append(args, filter.Until.Format(time.RFC3339))
+	}
+	query += ` ORDER BY created_at DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var logs []admin.MessageLog
+	for rows.Next() {
+		var m admin.MessageLog
+		var createdAt string
+		if err := rows.Scan(&m.ID, &m.OrgID, &m.EnvelopeID, &m.ThreadID,
+			&m.FromAgent, &m.ToAgent, &m.MsgType, &m.Direction, &m.ToolName,
+			&m.BodySize, &m.Body, &createdAt); err != nil {
+			return nil, err
+		}
+		m.CreatedAt = parseRFC3339(createdAt)
+		logs = append(logs, m)
+	}
+	return logs, rows.Err()
+}
+
+func (s *SQLiteStore) DeleteMessageLogsBefore(ctx context.Context, orgID string, before time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM message_logs WHERE org_id=? AND created_at < ?`,
+		orgID, before.Format(time.RFC3339),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }

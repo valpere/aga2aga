@@ -9,6 +9,17 @@ import (
 	"github.com/valpere/aga2aga/pkg/admin"
 )
 
+// seedOrg creates a minimal org + user so FK constraints on message_logs are satisfied.
+func seedOrg(t *testing.T, s admin.Store) (orgID string) {
+	t.Helper()
+	ctx := context.Background()
+	org := &admin.Organization{ID: "org-test", Name: "Test Org", CreatedAt: time.Now().UTC()}
+	if err := s.CreateOrg(ctx, org); err != nil {
+		t.Fatalf("seedOrg CreateOrg: %v", err)
+	}
+	return org.ID
+}
+
 func newTestStore(t *testing.T) admin.Store {
 	t.Helper()
 	s, err := iadmin.NewSQLiteStore(":memory:")
@@ -300,5 +311,106 @@ func TestSQLiteStore_UpdateUserPassword(t *testing.T) {
 	// Updating a non-existent user must return an error.
 	if err := s.UpdateUserPassword(ctx, "no-such-user", "x"); err == nil {
 		t.Error("UpdateUserPassword with unknown id: expected error, got nil")
+	}
+}
+
+func TestSQLiteStore_MessageLog_AppendAndList(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	orgID := seedOrg(t, s)
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	entries := []admin.MessageLog{
+		{
+			ID: "log-1", OrgID: orgID,
+			EnvelopeID: "env-a", ThreadID: "thread-1",
+			FromAgent: "agent-alpha", ToAgent: "agent-beta",
+			MsgType: "agent.message", Direction: "send", ToolName: "send_message",
+			BodySize: 42, Body: "hello beta",
+			CreatedAt: now,
+		},
+		{
+			ID: "log-2", OrgID: orgID,
+			EnvelopeID: "env-b", ThreadID: "",
+			FromAgent: "agent-beta", ToAgent: "agent-alpha",
+			MsgType: "task.request", Direction: "receive", ToolName: "get_task",
+			BodySize: 10, Body: "task body",
+			CreatedAt: now.Add(time.Second),
+		},
+	}
+
+	for i := range entries {
+		if err := s.AppendMessageLog(ctx, &entries[i]); err != nil {
+			t.Fatalf("AppendMessageLog[%d]: %v", i, err)
+		}
+	}
+
+	tests := []struct {
+		name   string
+		filter admin.MessageLogFilter
+		want   int // expected row count
+	}{
+		{"no filter", admin.MessageLogFilter{}, 2},
+		{"by agent alpha", admin.MessageLogFilter{AgentID: "agent-alpha"}, 2}, // appears as from and to
+		{"by tool send_message", admin.MessageLogFilter{ToolName: "send_message"}, 1},
+		{"by tool get_task", admin.MessageLogFilter{ToolName: "get_task"}, 1},
+		{"since second entry", admin.MessageLogFilter{Since: now.Add(time.Second)}, 1},
+		{"until first entry only", admin.MessageLogFilter{Until: now}, 1},
+		{"limit 1", admin.MessageLogFilter{Limit: 1}, 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows, err := s.ListMessageLogs(ctx, orgID, tt.filter)
+			if err != nil {
+				t.Fatalf("ListMessageLogs: %v", err)
+			}
+			if len(rows) != tt.want {
+				t.Errorf("got %d rows, want %d", len(rows), tt.want)
+			}
+		})
+	}
+}
+
+func TestSQLiteStore_MessageLog_Delete(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	orgID := seedOrg(t, s)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	old := now.Add(-24 * time.Hour)
+
+	entries := []admin.MessageLog{
+		{ID: "log-old", OrgID: orgID, FromAgent: "a", ToAgent: "b",
+			MsgType: "agent.message", Direction: "send", ToolName: "send_message", CreatedAt: old},
+		{ID: "log-new", OrgID: orgID, FromAgent: "a", ToAgent: "b",
+			MsgType: "agent.message", Direction: "send", ToolName: "send_message", CreatedAt: now},
+	}
+	for i := range entries {
+		if err := s.AppendMessageLog(ctx, &entries[i]); err != nil {
+			t.Fatalf("AppendMessageLog: %v", err)
+		}
+	}
+
+	// Delete entries older than 1 hour ago.
+	cutoff := now.Add(-time.Hour)
+	n, err := s.DeleteMessageLogsBefore(ctx, orgID, cutoff)
+	if err != nil {
+		t.Fatalf("DeleteMessageLogsBefore: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("deleted %d rows, want 1", n)
+	}
+
+	remaining, err := s.ListMessageLogs(ctx, orgID, admin.MessageLogFilter{})
+	if err != nil {
+		t.Fatalf("ListMessageLogs after delete: %v", err)
+	}
+	if len(remaining) != 1 {
+		t.Fatalf("got %d rows after delete, want 1", len(remaining))
+	}
+	if remaining[0].ID != "log-new" {
+		t.Errorf("remaining row ID = %q, want %q", remaining[0].ID, "log-new")
 	}
 }

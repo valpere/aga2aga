@@ -10,20 +10,26 @@ import (
 )
 
 // Gateway wires the MCP server, Redis transport, PendingMap, policy enforcer,
-// and optional agent authenticator. Call New to create one, then Run to serve.
+// optional agent authenticator, and optional message logger.
+// Call New to create one, then Run to serve.
 type Gateway struct {
 	server   *mcpsdk.Server
 	trans    transport.Transport
 	pending  *PendingMap
 	enforcer PolicyEnforcer
 	auth     AgentAuthenticator
+	logger   MessageLogger
 	cfg      Config
 }
 
 // New creates a Gateway with all 6 MCP tools registered. auth may be nil to
-// disable agent key authentication (legacy/optional mode). The MCP server is
-// ready to accept connections after New returns — call Run to start serving.
-func New(t transport.Transport, e PolicyEnforcer, auth AgentAuthenticator, cfg Config) *Gateway {
+// disable agent key authentication (legacy/optional mode). logger may be nil
+// to disable message logging (equivalent to NoopMessageLogger). The MCP server
+// is ready to accept connections after New returns — call Run to start serving.
+func New(t transport.Transport, e PolicyEnforcer, auth AgentAuthenticator, logger MessageLogger, cfg Config) *Gateway {
+	if logger == nil {
+		logger = NewNoopMessageLogger()
+	}
 	srv := mcpsdk.NewServer(
 		&mcpsdk.Implementation{Name: "aga2aga-gateway", Version: "v1"},
 		nil,
@@ -34,6 +40,7 @@ func New(t transport.Transport, e PolicyEnforcer, auth AgentAuthenticator, cfg C
 		pending:  NewPendingMap(),
 		enforcer: e,
 		auth:     auth,
+		logger:   logger,
 		cfg:      cfg,
 	}
 	g.registerTools()
