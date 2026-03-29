@@ -17,6 +17,15 @@ test.beforeAll(async ({ browser }) => {
   await context.close();
 });
 
+test.afterAll(async ({ browser }) => {
+  const context = await browser.newContext({ storageState: '.auth/state.json' });
+  const page = await context.newPage();
+  await page.goto(`/agents/${agentID}`);
+  await page.locator('form[action$="/revoke"] button').click();
+  await expect(page.locator('.badge-revoked')).toBeVisible();
+  await context.close();
+});
+
 test('create an operator key shows the raw key once', async ({ page }) => {
   await page.goto('/api-keys');
   await page.locator('input[name="name"]').fill(opKeyName);
