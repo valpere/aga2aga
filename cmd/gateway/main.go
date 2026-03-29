@@ -53,6 +53,7 @@ func main() {
 	agentID := flag.String("agent-id", "mcp-gateway", "Gateway identity used in policy checks")
 	taskReadTimeout := flag.Duration("task-read-timeout", 5*time.Second, "Max wait for a task delivery in get_task")
 	requireAgentKey := flag.Bool("require-agent-key", false, "Require agents to present a valid role=agent API key with every MCP tool call")
+	messageLog := flag.Bool("message-log", true, "Log inter-agent message traffic to the admin store")
 	flag.Parse()
 
 	// SECURITY: prefer ADMIN_API_KEY env var over --admin-api-key flag.
@@ -101,7 +102,13 @@ func main() {
 	cfg.TaskReadTimeout = *taskReadTimeout
 	cfg.PendingTTL = *pendingTTL
 
-	gw := gateway.New(trans, enf, auth, cfg)
+	// Message logger (nil-safe: New treats nil as NoopMessageLogger).
+	msgLogger, closeMsgLogger := mustMessageLogger(*messageLog, *policyMode, *adminDB)
+	if closeMsgLogger != nil {
+		defer closeMsgLogger()
+	}
+
+	gw := gateway.New(trans, enf, auth, msgLogger, cfg)
 
 	// Root context cancelled on SIGINT / SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -216,6 +223,37 @@ func mustAuthenticator(mode, adminDB, adminURL string) (gateway.AgentAuthenticat
 	default:
 		log.Fatalf("unknown --policy-mode %q (want embedded or remote)", mode)
 		return nil, nil // unreachable
+	}
+}
+
+// mustMessageLogger returns a MessageLogger for the embedded store when enabled,
+// or a NoopMessageLogger when --message-log=false. Uses embedded mode only
+// (the admin server holds the store; the gateway logs into the same DB file).
+// Returns a close function if a new SQLite connection was opened.
+func mustMessageLogger(enabled bool, mode, adminDB string) (gateway.MessageLogger, func()) {
+	if !enabled {
+		log.Printf("message logging disabled (--message-log=false)")
+		return gateway.NewNoopMessageLogger(), nil
+	}
+	if mode != "embedded" {
+		// Remote mode: no direct DB access; message logging is a no-op for now.
+		log.Printf("message logging unavailable in remote policy mode")
+		return gateway.NewNoopMessageLogger(), nil
+	}
+	// SECURITY: resolve symlinks (CWE-22/61).
+	resolvedDB, err := filepath.EvalSymlinks(adminDB)
+	if err != nil {
+		log.Fatalf("resolve admin-db path for message logger: %v", err)
+	}
+	store, err := iadmin.NewSQLiteStore(resolvedDB)
+	if err != nil {
+		log.Fatalf("open admin store for message logger: %v", err)
+	}
+	// orgID "default" matches the seeded org created by aga2aga-admin on first run.
+	logger := gateway.NewEmbeddedMessageLogger(store, "default")
+	return logger, func() {
+		logger.Close()
+		_ = store.Close()
 	}
 }
 

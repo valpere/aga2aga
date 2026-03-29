@@ -93,6 +93,17 @@ func (g *Gateway) handleGetTask(ctx context.Context, _ *mcpsdk.CallToolRequest, 
 		// Envelope.ID or any other document field — per PendingMap security contract.
 		taskID := delivery.MsgID
 		g.pending.Store(taskID, topic, delivery.MsgID)
+		g.logger.Log(ctx, MessageLogEntry{
+			EnvelopeID: delivery.Doc.ID,
+			ThreadID:   delivery.Doc.ThreadID,
+			FromAgent:  delivery.Doc.From,
+			ToAgent:    in.Agent,
+			MsgType:    string(delivery.Doc.Type),
+			Direction:  "receive",
+			ToolName:   "get_task",
+			BodySize:   len(delivery.Doc.Body),
+			Body:       delivery.Doc.Body,
+		})
 		return nil, getTaskOut{TaskID: taskID, Body: delivery.Doc.Body}, nil
 	case <-tctx.Done():
 		return nil, getTaskOut{}, nil
@@ -147,6 +158,17 @@ func (g *Gateway) handleCompleteTask(ctx context.Context, _ *mcpsdk.CallToolRequ
 		return nil, completeTaskOut{}, fmt.Errorf("gateway: ack task: %w", err)
 	}
 
+	g.logger.Log(ctx, MessageLogEntry{
+		EnvelopeID: doc.ID,
+		ThreadID:   doc.ThreadID,
+		FromAgent:  in.Agent,
+		ToAgent:    "orchestrator",
+		MsgType:    string(protocol.TaskResult),
+		Direction:  "send",
+		ToolName:   "complete_task",
+		BodySize:   len(in.Result),
+		Body:       in.Result,
+	})
 	return nil, completeTaskOut{Status: "ok"}, nil
 }
 
@@ -198,6 +220,17 @@ func (g *Gateway) handleFailTask(ctx context.Context, _ *mcpsdk.CallToolRequest,
 		return nil, failTaskOut{}, fmt.Errorf("gateway: ack task: %w", err)
 	}
 
+	g.logger.Log(ctx, MessageLogEntry{
+		EnvelopeID: doc.ID,
+		ThreadID:   doc.ThreadID,
+		FromAgent:  in.Agent,
+		ToAgent:    "orchestrator",
+		MsgType:    string(protocol.TaskFail),
+		Direction:  "send",
+		ToolName:   "fail_task",
+		BodySize:   len(in.Error),
+		Body:       in.Error,
+	})
 	return nil, failTaskOut{Status: "ok"}, nil
 }
 
@@ -280,6 +313,17 @@ func (g *Gateway) handleSendMessage(ctx context.Context, _ *mcpsdk.CallToolReque
 		return nil, sendMessageOut{}, fmt.Errorf("gateway: publish message: %w", err)
 	}
 
+	g.logger.Log(ctx, MessageLogEntry{
+		EnvelopeID: doc.ID,
+		ThreadID:   doc.ThreadID,
+		FromAgent:  in.Agent,
+		ToAgent:    in.To,
+		MsgType:    string(protocol.AgentMessage),
+		Direction:  "send",
+		ToolName:   "send_message",
+		BodySize:   len(in.Body),
+		Body:       in.Body,
+	})
 	return nil, sendMessageOut{Status: "ok"}, nil
 }
 
@@ -326,6 +370,17 @@ func (g *Gateway) handleReceiveMessage(ctx context.Context, _ *mcpsdk.CallToolRe
 		// SECURITY: delivery.Doc.From is self-reported wire data (unverified until
 		// Phase 3 / Ed25519). MCP callers MUST NOT make authorization decisions based
 		// on this field alone. CWE-287.
+		g.logger.Log(ctx, MessageLogEntry{
+			EnvelopeID: delivery.Doc.ID,
+			ThreadID:   delivery.Doc.ThreadID,
+			FromAgent:  delivery.Doc.From,
+			ToAgent:    in.Agent,
+			MsgType:    string(delivery.Doc.Type),
+			Direction:  "receive",
+			ToolName:   "receive_message",
+			BodySize:   len(delivery.Doc.Body),
+			Body:       delivery.Doc.Body,
+		})
 		return nil, receiveMessageOut{From: delivery.Doc.From, Body: delivery.Doc.Body}, nil
 	case <-tctx.Done():
 		return nil, receiveMessageOut{}, nil
