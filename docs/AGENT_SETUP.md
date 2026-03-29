@@ -1,6 +1,6 @@
 # Agent Setup Guide
 
-How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI) to connect to the aga2aga MCP Gateway and exchange messages with the orchestrator and other agents.
+How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI, and OpenCode CLI) to connect to the aga2aga MCP Gateway and exchange messages with the orchestrator and other agents.
 
 ---
 
@@ -9,9 +9,11 @@ How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI) to connect to 
 1. [Overview](#overview)
 2. [Prerequisites](#prerequisites)
    - [Authentication](#authentication)
-3. [Configuring `.mcp.json`](#configuring-mcpjson)
-   - [stdio transport (recommended)](#stdio-transport-recommended)
-   - [HTTP transport](#http-transport)
+3. [Configuring MCP Connections](#configuring-mcp-connections)
+   - [Claude Code](#claude-code)
+   - [Codex CLI](#codex-cli)
+   - [Gemini CLI](#gemini-cli)
+   - [OpenCode CLI](#opencode-cli)
 4. [MCP Tools](#mcp-tools)
    - [get_task](#get_task)
    - [complete_task](#complete_task)
@@ -19,11 +21,14 @@ How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI) to connect to 
    - [heartbeat](#heartbeat)
    - [send_message](#send_message)
    - [receive_message](#receive_message)
+   - [get_my_limits](#get_my_limits)
+   - [get_my_policies](#get_my_policies)
 5. [Conversation Loop](#conversation-loop)
 6. [Agent ID Rules](#agent-id-rules)
 7. [Task Body Format](#task-body-format)
 8. [Error Reference](#error-reference)
-9. [Full Examples](#full-examples)
+9. [CLI Flag Reference](#cli-flag-reference)
+10. [Full Examples](#full-examples)
 
 ---
 
@@ -31,7 +36,7 @@ How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI) to connect to 
 
 The gateway bridges AI agents to a Redis Streams orchestration system. Agents communicate by exchanging **messages** through the gateway. A **task** is a specialised kind of message that requires an explicit outcome (complete or fail).
 
-From the agent's perspective the gateway is a standard MCP server with six tools:
+From the agent's perspective the gateway is a standard MCP server with eight tools:
 
 ```
 Messaging (fire-and-forget peer-to-peer):
@@ -43,11 +48,15 @@ Task lifecycle (request-response with guaranteed delivery):
   complete_task    → report success + deliver a result
   fail_task        → report failure with an error message
 
+Introspection:
+  get_my_limits    → query your effective resource limits
+  get_my_policies  → list communication policies that apply to you
+
 Utility:
   heartbeat        → health check (returns ok immediately)
 ```
 
-The agent polls `get_task`, does its work, then calls `complete_task` or `fail_task`. Agents can also exchange free-form messages (advice, warnings, suggestions) at any time using `send_message` and `receive_message` — independently of the task lifecycle. The gateway handles all Redis Streams bookkeeping transparently.
+The agent polls `get_task`, does its work, then calls `complete_task` or `fail_task`. Agents can also exchange free-form messages (advice, warnings, suggestions) at any time using `send_message` and `receive_message` — independently of the task lifecycle. Use `get_my_limits` and `get_my_policies` to discover what constraints and communication rules apply to your agent. The gateway handles all Redis Streams bookkeeping transparently.
 
 ---
 
@@ -92,58 +101,75 @@ The gateway verifies:
 
 ---
 
-## Configuring `.mcp.json`
+## Configuring MCP Connections
 
-Place `.mcp.json` in the project root (or the directory from which you launch the agent).
+Each CLI uses a different config file format. Quick reference:
 
-### stdio transport (recommended)
+| CLI | Config file | Format |
+|-----|------------|--------|
+| Claude Code | `.mcp.json` (project) or `~/.claude.json` (user) | JSON |
+| Codex CLI | `~/.codex/config.toml` (user) or `.codex/config.toml` (project) | TOML |
+| Gemini CLI | `.gemini/settings.json` (project) or `~/.gemini/settings.json` (user) | JSON |
+| OpenCode CLI | `opencode.jsonc` (project) or `~/.config/opencode/opencode.json` (global) | JSONC |
 
-The gateway process is launched as a child process and communicates via stdin/stdout. No network port is needed.
+**Gateway flags used in all examples below:**
+
+| Flag | Description |
+|------|-------------|
+| `--redis-addr` | Redis address (`host:port`, default `localhost:6379`) |
+| `--agent-id` | Identity of the gateway itself (used in policy checks, not the connecting agent's ID) |
+| `--policy-mode` | `embedded` (read local SQLite) or `remote` (call Admin HTTP API) |
+| `--admin-url` | Admin server base URL — required when `policy-mode=remote` |
+| `ADMIN_API_KEY` | Bearer token for Admin API; **always pass via env, never via `--admin-api-key` flag** |
+| `--task-read-timeout` | How long `get_task` waits for a delivery before returning empty (default `5s`) |
+| `--enforce-limits` | Enable per-agent resource limit enforcement (default `false`) |
+| `--gateway-org-id` | Organization ID for multi-tenant deployments (default `default`) |
+
+See [CLI Flag Reference](#cli-flag-reference) for the complete flag list.
+
+---
+
+### Claude Code
+
+Place `.mcp.json` in the project root (or `~/.claude.json` for user-level config).
+
+#### stdio transport (recommended)
 
 ```json
 {
   "mcpServers": {
     "aga2aga": {
       "type": "stdio",
-      "command": "/path/to/aga2aga-gateway",
+      "command": "/usr/local/bin/aga2aga-gateway",
       "args": [
-        "--mcp-transport", "stdio",
-        "--redis-addr",    "localhost:6379",
-        "--agent-id",      "mcp-gateway",
-        "--policy-mode",   "remote",
-        "--admin-url",     "http://localhost:8087",
-        "--task-read-timeout", "5s"
+        "--mcp-transport",     "stdio",
+        "--redis-addr",        "localhost:6379",
+        "--policy-mode",       "remote",
+        "--admin-url",         "http://localhost:8087",
+        "--agent-id",          "mcp-gateway",
+        "--task-read-timeout", "10s",
+        "--enforce-limits",
+        "--gateway-org-id",    "default"
       ],
       "env": {
-        "ADMIN_API_KEY": "<operator-api-key>"
+        "ADMIN_API_KEY": "aga2_op_abc123..."
       }
     }
   }
 }
 ```
 
-**Key fields:**
+The `"type": "stdio"` field is optional when `"command"` is present.
 
-| Field | Description |
-|-------|-------------|
-| `command` | Absolute path to the `aga2aga-gateway` binary |
-| `--redis-addr` | Redis address (`host:port`, default `localhost:6379`) |
-| `--agent-id` | Identity of the gateway itself (used in policy checks, not the connecting agent's ID) |
-| `--policy-mode` | `embedded` (read local SQLite) or `remote` (call Admin HTTP API) |
-| `--admin-url` | Admin server base URL — required when `policy-mode=remote` |
-| `ADMIN_API_KEY` | Bearer token for Admin API; **always pass via env, never via `--admin-api-key` flag** (the flag is visible in `/proc/<pid>/cmdline`) |
-| `--task-read-timeout` | How long `get_task` waits for a delivery before returning empty (default `5s`) |
-| `--pending-ttl` | How long a task ID is retained after delivery (default `1h`) |
+#### HTTP transport
 
-### HTTP transport
-
-Use HTTP when the gateway is a separate long-lived process (e.g. in Docker Compose).
+Use when the gateway is a separate long-lived process (e.g. in Docker Compose).
 
 ```json
 {
   "mcpServers": {
     "aga2aga": {
-      "type": "http",
+      "type": "sse",
       "url": "http://localhost:3000/mcp"
     }
   }
@@ -161,7 +187,154 @@ ADMIN_API_KEY=<key> aga2aga-gateway \
   --admin-url     http://localhost:8087
 ```
 
-> **Note:** The HTTP transport uses MCP Streamable-HTTP (SSE for server-to-client). Any HTTP client that supports Server-Sent Events works.
+> **Note:** The HTTP transport uses MCP Streamable-HTTP with SSE for server-to-client streaming. Use `"type": "sse"` (legacy) or `"type": "http"` (streamable) depending on your Claude Code version.
+
+---
+
+### Codex CLI
+
+Codex CLI uses **TOML**, not JSON. Place config at `~/.codex/config.toml` (user-level) or `.codex/config.toml` (project-level, trusted projects only).
+
+The transport type is determined implicitly: `command` = stdio, `url` = streamable HTTP. There is no explicit `type` field.
+
+#### stdio transport (recommended)
+
+```toml
+[mcp_servers.aga2aga]
+command = "/usr/local/bin/aga2aga-gateway"
+args = [
+  "--mcp-transport",     "stdio",
+  "--redis-addr",        "localhost:6379",
+  "--policy-mode",       "remote",
+  "--admin-url",         "http://localhost:8087",
+  "--agent-id",          "mcp-gateway",
+  "--task-read-timeout", "10s",
+  "--enforce-limits",
+  "--gateway-org-id",    "default",
+]
+
+[mcp_servers.aga2aga.env]
+ADMIN_API_KEY = "aga2_op_abc123..."
+```
+
+#### HTTP transport
+
+```toml
+[mcp_servers.aga2aga]
+url                  = "http://localhost:3000/mcp"
+bearer_token_env_var = "ADMIN_API_KEY"
+```
+
+`bearer_token_env_var` names an environment variable whose value is sent as `Authorization: Bearer <value>`. The variable must be set in the shell that launches Codex.
+
+---
+
+### Gemini CLI
+
+Place config at `.gemini/settings.json` (project) or `~/.gemini/settings.json` (user). MCP servers go under the top-level `"mcpServers"` key.
+
+> **Important:** Do NOT use underscores in the server name. Gemini CLI splits tool names on `_` after the `mcp_` prefix. Use `aga2aga`, not `aga_2_aga`.
+
+#### stdio transport (recommended)
+
+```json
+{
+  "mcpServers": {
+    "aga2aga": {
+      "command": "/usr/local/bin/aga2aga-gateway",
+      "args": [
+        "--mcp-transport",     "stdio",
+        "--redis-addr",        "localhost:6379",
+        "--policy-mode",       "remote",
+        "--admin-url",         "http://localhost:8087",
+        "--agent-id",          "mcp-gateway",
+        "--task-read-timeout", "10s",
+        "--enforce-limits",
+        "--gateway-org-id",    "default"
+      ],
+      "env": {
+        "ADMIN_API_KEY": "aga2_op_abc123..."
+      }
+    }
+  }
+}
+```
+
+#### HTTP transport
+
+Use `"httpUrl"` for MCP Streamable-HTTP. (Using `"url"` selects the older SSE transport instead.)
+
+```json
+{
+  "mcpServers": {
+    "aga2aga": {
+      "httpUrl": "http://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer ${ADMIN_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+Gemini CLI expands `$VAR` and `${VAR}` in `env` and `headers` values from the shell environment.
+
+---
+
+### OpenCode CLI
+
+Place config at `opencode.jsonc` (project) or `~/.config/opencode/opencode.json` (global). MCP servers go under the top-level `"mcp"` key — **not** `"mcpServers"`.
+
+Key differences from Claude Code:
+- Top-level key is `"mcp"`, not `"mcpServers"`
+- Explicit `"type"`: `"local"` (stdio) or `"remote"` (HTTP)
+- `"command"` is a **string array** that includes both the binary and all arguments (no separate `"args"` field)
+- Environment variables use `"environment"`, not `"env"`
+
+#### stdio transport (recommended)
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "aga2aga": {
+      "type": "local",
+      "command": [
+        "/usr/local/bin/aga2aga-gateway",
+        "--mcp-transport",     "stdio",
+        "--redis-addr",        "localhost:6379",
+        "--policy-mode",       "remote",
+        "--admin-url",         "http://localhost:8087",
+        "--agent-id",          "mcp-gateway",
+        "--task-read-timeout", "10s",
+        "--enforce-limits",
+        "--gateway-org-id",    "default"
+      ],
+      "environment": {
+        "ADMIN_API_KEY": "aga2_op_abc123..."
+      }
+    }
+  }
+}
+```
+
+#### HTTP transport
+
+```jsonc
+{
+  "mcp": {
+    "aga2aga": {
+      "type": "remote",
+      "url": "http://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:ADMIN_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+OpenCode uses `{env:VAR}` syntax (not `$VAR`) to reference environment variables in header values.
 
 ---
 
@@ -362,6 +535,105 @@ Empty `from` and `body` mean the timeout elapsed with no message. Poll again if 
 
 ---
 
+### get_my_limits
+
+Returns the effective resource limits configured for this agent. Use this to discover how much capacity the gateway has allocated to you before hitting a rate limit or body-size rejection.
+
+**Input:**
+
+```json
+{
+  "agent":   "my-agent-01",
+  "api_key": "..."
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `agent` | string | yes | Your agent's unique ID |
+| `api_key` | string | conditional | Required when gateway runs with `--require-agent-key` |
+
+**Output:**
+
+```json
+{
+  "max_body_bytes":    65536,
+  "max_send_per_min":  30,
+  "max_pending_tasks": 5,
+  "max_stream_len":    1000
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_body_bytes` | int | Maximum message/result body size in bytes. `0` = unlimited. |
+| `max_send_per_min` | int | Maximum sends per minute (sliding window). `0` = unlimited. |
+| `max_pending_tasks` | int | Maximum concurrent unacknowledged tasks. `0` = unlimited. |
+| `max_stream_len` | int | Redis stream backlog cap (XADD MAXLEN). `0` = unlimited. |
+
+All values `0` means no limits are configured. This is the default when `--enforce-limits` is not set on the gateway, or when no limit row exists for your agent or the global default (`*`).
+
+> Limits are configured in the Admin UI under **Limits**. An admin or operator sets per-agent rows or a global default row (`agent_id = *`). Per-agent rows take precedence over the global default.
+
+---
+
+### get_my_policies
+
+Returns all communication policies that apply to this agent — either as the source, the target, or via a wildcard (`*`).
+
+**Input:**
+
+```json
+{
+  "agent":   "my-agent-01",
+  "api_key": "..."
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `agent` | string | yes | Your agent's unique ID |
+| `api_key` | string | conditional | Required when gateway runs with `--require-agent-key` |
+
+**Output:**
+
+```json
+{
+  "policies": [
+    {
+      "id":        "pol-abc123",
+      "source_id": "my-agent-01",
+      "target_id": "orchestrator",
+      "direction": "bidirectional",
+      "action":    "allow",
+      "priority":  100
+    },
+    {
+      "id":        "pol-def456",
+      "source_id": "*",
+      "target_id": "my-agent-01",
+      "direction": "unidirectional",
+      "action":    "allow",
+      "priority":  50
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `policies` | array | All matching policies (may be empty) |
+| `policies[].id` | string | Policy record ID |
+| `policies[].source_id` | string | Source agent ID, or `*` for wildcard |
+| `policies[].target_id` | string | Target agent ID, or `*` for wildcard |
+| `policies[].direction` | string | `unidirectional` (source→target only) or `bidirectional` (source↔target) |
+| `policies[].action` | string | `allow` or `deny` |
+| `policies[].priority` | int | Higher value wins when multiple policies match |
+
+An empty `policies` array means either no policies are configured or the gateway is running in HTTP remote mode (which does not support policy listing). Use the Admin UI to verify policy configuration.
+
+---
+
 ## Conversation Loop
 
 The standard agent conversation pattern:
@@ -475,15 +747,43 @@ Your `result` (in `complete_task`) or `error` (in `fail_task`) should also be pl
 | `gateway: result body exceeds maximum size` | Result > 65 536 bytes | Truncate or summarise the result |
 | `gateway: error body exceeds maximum size` | Error message > 65 536 bytes | Shorten the error string |
 | `gateway: message body exceeds maximum size` | `send_message` body > 65 536 bytes | Shorten the message |
+| `gateway/limits: body size N exceeds limit N for agent "X"` | Per-agent `max_body_bytes` limit exceeded | Reduce body size, or increase the limit in Admin UI → Limits |
+| `gateway/limits: send rate limit N/min exceeded for agent "X"` | Per-agent `max_send_per_min` limit exceeded | Wait and retry with backoff, or increase the limit in Admin UI → Limits |
+| `gateway/limits: pending task limit N reached for agent "X"` | Too many unacknowledged tasks | Call `complete_task` or `fail_task` on pending tasks before requesting more |
 | `gateway: publish message: ...` | Redis error while sending message | Check Redis connectivity |
 | `gateway: subscribe: ...` | Redis error while subscribing to message stream | Check Redis connectivity |
 | `gateway: ack message: ...` | Redis error while acknowledging a received message | Check Redis connectivity; message may be redelivered |
+
+> The `gateway/limits:` errors only appear when the gateway runs with `--enforce-limits`. Without that flag, no per-agent limits are enforced.
+
+---
+
+## CLI Flag Reference
+
+All flags for `aga2aga-gateway`. Boolean flags (e.g. `--enforce-limits`) can be passed without a value to enable them.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--redis-addr` | `localhost:6379` | Redis address (`host:port`) |
+| `--mcp-transport` | `stdio` | MCP transport: `stdio` or `http` |
+| `--addr` | `:3000` | Listen address for HTTP transport |
+| `--policy-mode` | `embedded` | Policy mode: `embedded` (local SQLite) or `remote` (Admin HTTP API) |
+| `--admin-db` | `admin.db` | SQLite database path (embedded policy mode) |
+| `--admin-url` | (none) | Admin server base URL (remote policy mode) |
+| `--admin-api-key` | (none) | Bearer token for Admin API — **prefer `ADMIN_API_KEY` env var** (flag value is visible in `/proc/<pid>/cmdline`) |
+| `--agent-id` | `mcp-gateway` | Gateway identity used in policy checks |
+| `--task-read-timeout` | `5s` | How long `get_task` blocks waiting for a task before returning empty |
+| `--pending-ttl` | `1h` | How long a `task_id` remains valid after delivery |
+| `--require-agent-key` | `false` | Require a valid `role=agent` API key with every MCP tool call |
+| `--enforce-limits` | `false` | Enforce per-agent resource limits from the admin store |
+| `--message-log` | `true` | Log inter-agent message traffic to the admin store |
+| `--gateway-org-id` | `default` | Organization ID for multi-tenant limit lookups and message logs |
 
 ---
 
 ## Full Examples
 
-### Claude Code (stdio)
+### Claude Code
 
 `.mcp.json` in the project root where Claude Code is launched:
 
@@ -494,12 +794,14 @@ Your `result` (in `complete_task`) or `error` (in `fail_task`) should also be pl
       "type": "stdio",
       "command": "/usr/local/bin/aga2aga-gateway",
       "args": [
-        "--mcp-transport",       "stdio",
-        "--redis-addr",          "localhost:6379",
-        "--policy-mode",         "remote",
-        "--admin-url",           "http://localhost:8087",
-        "--task-read-timeout",   "10s",
-        "--agent-id",            "mcp-gateway"
+        "--mcp-transport",     "stdio",
+        "--redis-addr",        "localhost:6379",
+        "--policy-mode",       "remote",
+        "--admin-url",         "http://localhost:8087",
+        "--task-read-timeout", "10s",
+        "--agent-id",          "mcp-gateway",
+        "--enforce-limits",
+        "--gateway-org-id",    "default"
       ],
       "env": {
         "ADMIN_API_KEY": "aga2_op_abc123..."
@@ -515,9 +817,91 @@ Claude Code discovers the tools automatically on startup. Use them in conversati
 > Use get_task with agent "claude-code-01" to check for work.
 ```
 
-### Codex CLI (stdio)
+---
 
-Same `.mcp.json` format. Codex CLI reads `.mcp.json` from the working directory.
+### Codex CLI
+
+`~/.codex/config.toml` (user-level) or `.codex/config.toml` (project-level):
+
+```toml
+[mcp_servers.aga2aga]
+command = "/usr/local/bin/aga2aga-gateway"
+args = [
+  "--mcp-transport",     "stdio",
+  "--redis-addr",        "localhost:6379",
+  "--policy-mode",       "remote",
+  "--admin-url",         "http://localhost:8087",
+  "--task-read-timeout", "10s",
+  "--agent-id",          "mcp-gateway",
+  "--enforce-limits",
+  "--gateway-org-id",    "default",
+]
+
+[mcp_servers.aga2aga.env]
+ADMIN_API_KEY = "aga2_op_abc123..."
+```
+
+---
+
+### Gemini CLI
+
+`.gemini/settings.json` in the project root:
+
+```json
+{
+  "mcpServers": {
+    "aga2aga": {
+      "command": "/usr/local/bin/aga2aga-gateway",
+      "args": [
+        "--mcp-transport",     "stdio",
+        "--redis-addr",        "localhost:6379",
+        "--policy-mode",       "remote",
+        "--admin-url",         "http://localhost:8087",
+        "--task-read-timeout", "10s",
+        "--agent-id",          "mcp-gateway",
+        "--enforce-limits",
+        "--gateway-org-id",    "default"
+      ],
+      "env": {
+        "ADMIN_API_KEY": "aga2_op_abc123..."
+      }
+    }
+  }
+}
+```
+
+---
+
+### OpenCode CLI
+
+`opencode.jsonc` in the project root:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "aga2aga": {
+      "type": "local",
+      "command": [
+        "/usr/local/bin/aga2aga-gateway",
+        "--mcp-transport",     "stdio",
+        "--redis-addr",        "localhost:6379",
+        "--policy-mode",       "remote",
+        "--admin-url",         "http://localhost:8087",
+        "--task-read-timeout", "10s",
+        "--agent-id",          "mcp-gateway",
+        "--enforce-limits",
+        "--gateway-org-id",    "default"
+      ],
+      "environment": {
+        "ADMIN_API_KEY": "aga2_op_abc123..."
+      }
+    }
+  }
+}
+```
+
+---
 
 ### Programmatic HTTP client (Python example)
 
