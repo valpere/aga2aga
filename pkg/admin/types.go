@@ -129,6 +129,21 @@ type MessageLogFilter struct {
 	Limit    int       // max rows; 0 → default 200
 }
 
+// AgentLimits holds per-agent (or global-default) resource constraints enforced
+// at the gateway. AgentID="*" means the global default; agent-specific rows take
+// precedence. All numeric fields use 0 to mean "unlimited / use global default".
+type AgentLimits struct {
+	ID              string    `db:"id"`
+	OrgID           string    `db:"org_id"`
+	AgentID         string    `db:"agent_id"`          // specific agent or "*" for global default
+	MaxBodyBytes    int       `db:"max_body_bytes"`    // 0 = unlimited
+	MaxSendPerMin   int       `db:"max_send_per_min"`  // 0 = unlimited
+	MaxPendingTasks int       `db:"max_pending_tasks"` // 0 = unlimited
+	MaxStreamLen    int64     `db:"max_stream_len"`    // 0 = unlimited (Redis MAXLEN)
+	UpdatedAt       time.Time `db:"updated_at"`
+	UpdatedBy       string    `db:"updated_by"` // User.ID
+}
+
 // APIKey grants programmatic access to the admin API (e.g. the gateway).
 // The raw key is shown once at creation; only its SHA-256 hash is stored.
 type APIKey struct {

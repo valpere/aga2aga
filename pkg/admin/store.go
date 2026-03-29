@@ -62,6 +62,17 @@ type MessageLogStore interface {
 	DeleteMessageLogsBefore(ctx context.Context, orgID string, before time.Time) (int64, error)
 }
 
+// LimitStore persists and retrieves per-agent resource limit configurations.
+// GetEffectiveLimits resolves the applicable limits for an agent: it tries the
+// agent-specific row first, then falls back to the global-default row (AgentID="*").
+// Returns nil, nil when no limits are configured for the agent or globally.
+type LimitStore interface {
+	UpsertAgentLimits(ctx context.Context, l *AgentLimits) error
+	GetEffectiveLimits(ctx context.Context, orgID, agentID string) (*AgentLimits, error)
+	ListAgentLimits(ctx context.Context, orgID string) ([]AgentLimits, error)
+	DeleteAgentLimits(ctx context.Context, id string) error
+}
+
 // Store is the full persistence interface required by the admin server.
 type Store interface {
 	OrgStore
@@ -71,4 +82,5 @@ type Store interface {
 	AuditStore
 	APIKeyStore
 	MessageLogStore
+	LimitStore
 }

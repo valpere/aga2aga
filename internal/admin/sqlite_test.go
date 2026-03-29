@@ -414,3 +414,122 @@ func TestSQLiteStore_MessageLog_Delete(t *testing.T) {
 		t.Errorf("remaining row ID = %q, want %q", remaining[0].ID, "log-new")
 	}
 }
+
+func TestSQLiteStore_AgentLimits(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	orgID := seedOrg(t, s)
+
+	userID := "usr-limits-1"
+	_ = s.CreateUser(ctx, &admin.User{ID: userID, OrgID: orgID, Username: "limitsuser",
+		Password: "h", Role: admin.RoleAdmin, CreatedAt: time.Now().UTC()})
+
+	t.Run("GetEffectiveLimits_NoRows", func(t *testing.T) {
+		got, err := s.GetEffectiveLimits(ctx, orgID, "agent-x")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != nil {
+			t.Errorf("want nil, got %+v", got)
+		}
+	})
+
+	t.Run("UpsertGlobalDefault", func(t *testing.T) {
+		l := &admin.AgentLimits{
+			ID: "lim-1", OrgID: orgID, AgentID: "*",
+			MaxBodyBytes: 1024, MaxSendPerMin: 10, MaxPendingTasks: 5, MaxStreamLen: 100,
+			UpdatedAt: time.Now().UTC(), UpdatedBy: userID,
+		}
+		if err := s.UpsertAgentLimits(ctx, l); err != nil {
+			t.Fatalf("UpsertAgentLimits: %v", err)
+		}
+	})
+
+	t.Run("GetEffectiveLimits_FallsBackToGlobal", func(t *testing.T) {
+		got, err := s.GetEffectiveLimits(ctx, orgID, "agent-x")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got == nil {
+			t.Fatal("want non-nil, got nil")
+		}
+		if got.AgentID != "*" {
+			t.Errorf("AgentID = %q, want *", got.AgentID)
+		}
+		if got.MaxBodyBytes != 1024 {
+			t.Errorf("MaxBodyBytes = %d, want 1024", got.MaxBodyBytes)
+		}
+	})
+
+	t.Run("UpsertAgentSpecific", func(t *testing.T) {
+		l := &admin.AgentLimits{
+			ID: "lim-2", OrgID: orgID, AgentID: "agent-x",
+			MaxBodyBytes: 2048, MaxSendPerMin: 20, MaxPendingTasks: 3, MaxStreamLen: 50,
+			UpdatedAt: time.Now().UTC(), UpdatedBy: userID,
+		}
+		if err := s.UpsertAgentLimits(ctx, l); err != nil {
+			t.Fatalf("UpsertAgentLimits: %v", err)
+		}
+	})
+
+	t.Run("GetEffectiveLimits_AgentSpecificTakesPrecedence", func(t *testing.T) {
+		got, err := s.GetEffectiveLimits(ctx, orgID, "agent-x")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got == nil {
+			t.Fatal("want non-nil, got nil")
+		}
+		if got.AgentID != "agent-x" {
+			t.Errorf("AgentID = %q, want agent-x", got.AgentID)
+		}
+		if got.MaxBodyBytes != 2048 {
+			t.Errorf("MaxBodyBytes = %d, want 2048", got.MaxBodyBytes)
+		}
+	})
+
+	t.Run("ListAgentLimits", func(t *testing.T) {
+		rows, err := s.ListAgentLimits(ctx, orgID)
+		if err != nil {
+			t.Fatalf("ListAgentLimits: %v", err)
+		}
+		if len(rows) != 2 {
+			t.Fatalf("got %d rows, want 2", len(rows))
+		}
+	})
+
+	t.Run("UpsertUpdatesExisting", func(t *testing.T) {
+		// Same AgentID="*" — should update, not insert a duplicate.
+		l := &admin.AgentLimits{
+			ID: "lim-1-updated", OrgID: orgID, AgentID: "*",
+			MaxBodyBytes: 9999, MaxSendPerMin: 10, MaxPendingTasks: 5, MaxStreamLen: 100,
+			UpdatedAt: time.Now().UTC(), UpdatedBy: userID,
+		}
+		if err := s.UpsertAgentLimits(ctx, l); err != nil {
+			t.Fatalf("UpsertAgentLimits: %v", err)
+		}
+		got, _ := s.GetEffectiveLimits(ctx, orgID, "other-agent")
+		if got.MaxBodyBytes != 9999 {
+			t.Errorf("MaxBodyBytes = %d, want 9999 after update", got.MaxBodyBytes)
+		}
+		rows, _ := s.ListAgentLimits(ctx, orgID)
+		if len(rows) != 2 {
+			t.Fatalf("got %d rows after upsert, want 2 (no duplicate)", len(rows))
+		}
+	})
+
+	t.Run("DeleteAgentLimits", func(t *testing.T) {
+		got, _ := s.GetEffectiveLimits(ctx, orgID, "agent-x")
+		if err := s.DeleteAgentLimits(ctx, got.ID); err != nil {
+			t.Fatalf("DeleteAgentLimits: %v", err)
+		}
+		// agent-x should now fall back to global default
+		after, _ := s.GetEffectiveLimits(ctx, orgID, "agent-x")
+		if after == nil {
+			t.Fatal("want fallback to global default, got nil")
+		}
+		if after.AgentID != "*" {
+			t.Errorf("AgentID = %q, want * after delete", after.AgentID)
+		}
+	})
+}

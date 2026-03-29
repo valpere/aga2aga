@@ -5,6 +5,7 @@ package admin
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -119,6 +120,19 @@ CREATE TABLE IF NOT EXISTS message_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_message_logs_org_time  ON message_logs(org_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_message_logs_agent     ON message_logs(org_id, from_agent, to_agent);
+
+CREATE TABLE IF NOT EXISTS agent_limits (
+  id                TEXT PRIMARY KEY,
+  org_id            TEXT NOT NULL REFERENCES organizations(id),
+  agent_id          TEXT NOT NULL,
+  max_body_bytes    INTEGER NOT NULL DEFAULT 0,
+  max_send_per_min  INTEGER NOT NULL DEFAULT 0,
+  max_pending_tasks INTEGER NOT NULL DEFAULT 0,
+  max_stream_len    INTEGER NOT NULL DEFAULT 0,
+  updated_at        DATETIME NOT NULL,
+  updated_by        TEXT NOT NULL REFERENCES users(id),
+  UNIQUE(org_id, agent_id)
+);
 `)
 	if err != nil {
 		return err
@@ -568,4 +582,98 @@ func (s *SQLiteStore) DeleteMessageLogsBefore(ctx context.Context, orgID string,
 		return 0, err
 	}
 	return res.RowsAffected()
+}
+
+// --- LimitStore ---
+
+func (s *SQLiteStore) UpsertAgentLimits(ctx context.Context, l *admin.AgentLimits) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO agent_limits
+		 (id, org_id, agent_id, max_body_bytes, max_send_per_min, max_pending_tasks, max_stream_len, updated_at, updated_by)
+		 VALUES(?,?,?,?,?,?,?,?,?)
+		 ON CONFLICT(org_id, agent_id) DO UPDATE SET
+		   id=excluded.id,
+		   max_body_bytes=excluded.max_body_bytes,
+		   max_send_per_min=excluded.max_send_per_min,
+		   max_pending_tasks=excluded.max_pending_tasks,
+		   max_stream_len=excluded.max_stream_len,
+		   updated_at=excluded.updated_at,
+		   updated_by=excluded.updated_by`,
+		l.ID, l.OrgID, l.AgentID,
+		l.MaxBodyBytes, l.MaxSendPerMin, l.MaxPendingTasks, l.MaxStreamLen,
+		l.UpdatedAt.Format(time.RFC3339), l.UpdatedBy,
+	)
+	return err
+}
+
+// GetEffectiveLimits returns the agent-specific row if present, or the global
+// default row (agent_id="*") if not. Returns nil, nil when neither exists.
+func (s *SQLiteStore) GetEffectiveLimits(ctx context.Context, orgID, agentID string) (*admin.AgentLimits, error) {
+	// Try agent-specific first.
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, org_id, agent_id, max_body_bytes, max_send_per_min, max_pending_tasks, max_stream_len, updated_at, updated_by
+		 FROM agent_limits WHERE org_id=? AND agent_id=?`,
+		orgID, agentID,
+	)
+	l, err := scanAgentLimits(row)
+	if err == nil {
+		return l, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	// Fall back to global default.
+	row = s.db.QueryRowContext(ctx,
+		`SELECT id, org_id, agent_id, max_body_bytes, max_send_per_min, max_pending_tasks, max_stream_len, updated_at, updated_by
+		 FROM agent_limits WHERE org_id=? AND agent_id='*'`,
+		orgID,
+	)
+	l, err = scanAgentLimits(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return l, err
+}
+
+func (s *SQLiteStore) ListAgentLimits(ctx context.Context, orgID string) ([]admin.AgentLimits, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, org_id, agent_id, max_body_bytes, max_send_per_min, max_pending_tasks, max_stream_len, updated_at, updated_by
+		 FROM agent_limits WHERE org_id=? ORDER BY agent_id`,
+		orgID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []admin.AgentLimits
+	for rows.Next() {
+		var l admin.AgentLimits
+		var updatedAt string
+		if err := rows.Scan(&l.ID, &l.OrgID, &l.AgentID,
+			&l.MaxBodyBytes, &l.MaxSendPerMin, &l.MaxPendingTasks, &l.MaxStreamLen,
+			&updatedAt, &l.UpdatedBy); err != nil {
+			return nil, err
+		}
+		l.UpdatedAt = parseRFC3339(updatedAt)
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+func (s *SQLiteStore) DeleteAgentLimits(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM agent_limits WHERE id=?`, id)
+	return err
+}
+
+func scanAgentLimits(row *sql.Row) (*admin.AgentLimits, error) {
+	var l admin.AgentLimits
+	var updatedAt string
+	if err := row.Scan(&l.ID, &l.OrgID, &l.AgentID,
+		&l.MaxBodyBytes, &l.MaxSendPerMin, &l.MaxPendingTasks, &l.MaxStreamLen,
+		&updatedAt, &l.UpdatedBy); err != nil {
+		return nil, err
+	}
+	l.UpdatedAt = parseRFC3339(updatedAt)
+	return &l, nil
 }
