@@ -72,6 +72,18 @@ func (g *Gateway) authenticateAgent(ctx context.Context, claimedAgent, rawKey st
 	return nil
 }
 
+// applyDefaults fills zero-value agent and apiKey fields from Config defaults.
+// Explicit values in tool call arguments always take precedence.
+func (g *Gateway) applyDefaults(agent, apiKey string) (string, string) {
+	if agent == "" {
+		agent = g.cfg.DefaultAgentName
+	}
+	if apiKey == "" {
+		apiKey = g.cfg.DefaultAgentKey
+	}
+	return agent, apiKey
+}
+
 // registerTools adds the 6 MCP tools to the server. Called once by New.
 func (g *Gateway) registerTools() {
 	mcpsdk.AddTool(g.server,
