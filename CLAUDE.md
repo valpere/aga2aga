@@ -155,7 +155,9 @@ docs/             All project documentation
   - `io.LimitReader(4KiB)` on response body before JSON decode (CWE-400)
   - Bearer token never in error messages (CWE-532)
   - `url.QueryEscape` on source/target params
-- `Config` struct + `DefaultConfig()` — `AgentID`, `TaskReadTimeout` (5s), `PendingTTL` (5m)
+- `Config` struct + `DefaultConfig()` — `AgentID`, `TaskReadTimeout` (5s), `PendingTTL` (5m), `DefaultAgentName`, `DefaultAgentKey` (#137)
+  - `Config.String()` — redacts `DefaultAgentKey` to `<redacted>` in log/debug output (CWE-532)
+  - `applyDefaults(agent, apiKey string) (string, string)` — fills both fields only when both are absent; injecting the default key for a caller-supplied agent would create an auth oracle (CWE-287)
 - `AgentAuthenticator` interface (#117) — `Authenticate(ctx, rawKey) (agentID, error)` — Phase 2.5 bridge before Ed25519
   - `EmbeddedAuthenticator` — SHA-256 hash → `GetAPIKeyByHash` → revocation → role check → return AgentID
   - `HTTPAuthenticator` — `POST /api/v1/auth` with Bearer rawKey; `io.LimitReader(4KiB)` (CWE-400)
@@ -182,8 +184,9 @@ docs/             All project documentation
   - `receive_message`: validates → auth → policy(agent→orchestrator) → subscribe `agent.messages.<agent>` → wait with timeout → Ack immediately → log(direction="receive") → return `{from, body}`
   - `get_my_limits` (#128): validates → auth → `limiter.GetEffectiveLimits` → return `{max_body_bytes, max_send_per_min, max_pending_tasks, max_stream_len}`
   - `get_my_policies` (#128): validates → auth → type-assert PolicyQuerier → `ListPoliciesFor` → return `{policies:[...]}`; returns empty list when enforcer has no PolicyQuerier
-- Security: agent ID validated via `admin.IsValidAgentID` (canonical regex, CWE-20/CWE-74); `taskID = delivery.MsgID` (transport-layer ID, not attacker-controlled `Doc.ID`); body capped at `MaxDocumentBytes` (CWE-400); `authenticateAgent` uses `subtle.ConstantTimeCompare` for ID match (CWE-208); `export_test.go` pattern for `AuthenticateAgentForTest` (test-only, not compiled in production)
-- `cmd/gateway/main.go` (#92, #117, #127, #128): 14 CLI flags; `--require-agent-key` (default false) wires auth; `--message-log` (default true) enables logging; `--enforce-limits` (default false) enables limits; `--gateway-org-id` (default "default") for multi-tenant; `mustAuthenticator`+`mustMessageLogger`+`mustLimitEnforcer` return `(impl, func())` callbacks; ADMIN_API_KEY env var preferred over flag (CWE-214); LIFO defer; stdio + HTTP transports; `WriteTimeout:0` for SSE; graceful shutdown 10s; `filepath.EvalSymlinks` (CWE-22/61)
+- Security: agent ID validated via `admin.IsValidAgentID` (canonical regex, CWE-20/CWE-74); `taskID = delivery.MsgID` (transport-layer ID, not attacker-controlled `Doc.ID`); body capped at `MaxDocumentBytes` (CWE-400); `authenticateAgent` uses `subtle.ConstantTimeCompare` for ID match (CWE-208); `export_test.go` pattern for `AuthenticateAgentForTest` (test-only, not compiled in production); `applyDefaults` called at top of all 8 handlers before `IsValidAgentID` — default key only injected when both fields absent (CWE-287)
+- `cmd/gateway/main.go` (#92, #117, #127, #128, #137): 14 CLI flags; `--require-agent-key` (default false) wires auth; `--message-log` (default true) enables logging; `--enforce-limits` (default false) enables limits; `--gateway-org-id` (default "default") for multi-tenant; `mustAuthenticator`+`mustMessageLogger`+`mustLimitEnforcer` return `(impl, func())` callbacks; ADMIN_API_KEY env var preferred over flag (CWE-214); LIFO defer; stdio + HTTP transports; `WriteTimeout:0` for SSE; graceful shutdown 10s; `filepath.EvalSymlinks` (CWE-22/61)
+  - `AGA2AGA_AGENT_NAME` / `AGA2AGA_API_KEY` env vars (#137) — read after flag parse; stored in `cfg.DefaultAgentName`/`cfg.DefaultAgentKey`; zeroed with per-variable warning when `--mcp-transport=http` (shared server, cross-agent identity injection would be a security defect)
 - `PendingMap.StartCleanup` idempotent via `sync.Once` — safe to call from both `Gateway.Run()` (stdio) and `Gateway.StartCleanup()` (HTTP path) without spawning duplicate goroutines
 
 #### Implemented: pkg/transport, pkg/identity, pkg/negotiation (stubs)

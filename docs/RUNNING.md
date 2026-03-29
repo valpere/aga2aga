@@ -136,7 +136,8 @@ Default ports avoid common conflicts (Open WebUI on 8080, local Redis on 6379). 
 | `REDIS_PORT` | `6380` | Redis host port |
 | `ADMIN_PORT` | `8087` | Admin UI host port |
 | `GATEWAY_PORT` | `3001` | MCP Gateway host port |
-| `ADMIN_API_KEY` | *(required)* | Gateway → Admin Bearer token |
+
+`ADMIN_API_KEY` is the gateway's credential for talking to the Admin API — set it in `.env.local` alongside the port overrides. This is an **operator secret**, not an agent credential (agents never need this key).
 
 Example `.env.local` (gitignored — never commit this file):
 
@@ -154,6 +155,8 @@ All `make` targets load `.env.local` automatically.
 ## Connecting an agent
 
 The gateway speaks HTTP-based MCP at `http://localhost:3001` (or your `GATEWAY_PORT`).
+
+> **Agent key (optional):** By default (`--require-agent-key=false`) agents only need to provide their `agent` ID in each tool call — no `api_key` required. If you enable `--require-agent-key`, create a key with `role=agent` in Admin UI → API Keys and select the agent from the dropdown. See [AGENT_SETUP.md](AGENT_SETUP.md) for details.
 
 ### Claude Code
 
