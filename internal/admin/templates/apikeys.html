@@ -29,6 +29,7 @@
       </div>
       <div id="agent-id-field" style="display:none">
         <label>Agent ID</label><br>
+        <!-- pattern mirrors pkg/admin/validation.go agentIDPattern — keep in sync -->
         <input type="text" name="agent_id" placeholder="e.g. agent-alpha" pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]">
       </div>
       <button type="submit" class="btn btn-primary btn-sm">Create Key</button>

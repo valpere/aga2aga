@@ -13,8 +13,10 @@
   <form method="POST" action="/agents/new">
     <div class="form-group">
       <label for="agent_id">Agent ID</label>
+      <!-- pattern mirrors pkg/admin/validation.go agentIDPattern — keep in sync -->
       <input type="text" id="agent_id" name="agent_id" required value="{{.AgentID}}"
-             placeholder="e.g. agent-alpha">
+             placeholder="e.g. agent-alpha"
+             pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}[a-zA-Z0-9]">
       <div class="form-hint">Must match the <code>from:</code> field in Skills Documents sent by this agent.</div>
     </div>
     <div class="form-group">
