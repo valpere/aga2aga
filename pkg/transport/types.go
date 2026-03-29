@@ -18,12 +18,20 @@ type Delivery struct {
 	RecvedAt time.Time          // wall-clock receive time; for monitoring, not business logic
 }
 
+// PublishOptions configures optional parameters for a Publish call.
+// Zero values apply the transport's defaults (e.g. MaxLen=0 means unlimited).
+type PublishOptions struct {
+	// MaxLen caps the Redis stream length (XADD MAXLEN ~). 0 = unlimited.
+	MaxLen int64
+}
+
 // Transport is the pluggable message bus abstraction. Concrete implementations
 // (Redis Streams in Phase 2, Gossip P2P in Phase 5) satisfy this interface.
 // All methods accept a context for cancellation and deadline propagation.
 type Transport interface {
-	// Publish sends doc to the named topic.
-	Publish(ctx context.Context, topic string, doc *document.Document) error
+	// Publish sends doc to the named topic. opts is optional; at most one
+	// PublishOptions value is read (variadic for backward compatibility).
+	Publish(ctx context.Context, topic string, doc *document.Document, opts ...PublishOptions) error
 
 	// Subscribe returns a channel that yields deliveries received on topic.
 	// The channel is closed when ctx is cancelled or an unrecoverable error

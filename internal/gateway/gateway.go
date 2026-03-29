@@ -10,7 +10,8 @@ import (
 )
 
 // Gateway wires the MCP server, Redis transport, PendingMap, policy enforcer,
-// optional agent authenticator, and optional message logger.
+// optional agent authenticator, optional message logger, and optional limit
+// enforcer.
 // Call New to create one, then Run to serve.
 type Gateway struct {
 	server   *mcpsdk.Server
@@ -19,16 +20,22 @@ type Gateway struct {
 	enforcer PolicyEnforcer
 	auth     AgentAuthenticator
 	logger   MessageLogger
+	limiter  LimitEnforcer
 	cfg      Config
 }
 
-// New creates a Gateway with all 6 MCP tools registered. auth may be nil to
+// New creates a Gateway with all 8 MCP tools registered. auth may be nil to
 // disable agent key authentication (legacy/optional mode). logger may be nil
-// to disable message logging (equivalent to NoopMessageLogger). The MCP server
-// is ready to accept connections after New returns — call Run to start serving.
-func New(t transport.Transport, e PolicyEnforcer, auth AgentAuthenticator, logger MessageLogger, cfg Config) *Gateway {
+// to disable message logging (equivalent to NoopMessageLogger). limiter may be
+// nil to disable limit enforcement (equivalent to NoopLimitEnforcer). The MCP
+// server is ready to accept connections after New returns — call Run to start
+// serving.
+func New(t transport.Transport, e PolicyEnforcer, auth AgentAuthenticator, logger MessageLogger, limiter LimitEnforcer, cfg Config) *Gateway {
 	if logger == nil {
 		logger = NewNoopMessageLogger()
+	}
+	if limiter == nil {
+		limiter = NewNoopLimitEnforcer()
 	}
 	srv := mcpsdk.NewServer(
 		&mcpsdk.Implementation{Name: "aga2aga-gateway", Version: "v1"},
@@ -41,6 +48,7 @@ func New(t transport.Transport, e PolicyEnforcer, auth AgentAuthenticator, logge
 		enforcer: e,
 		auth:     auth,
 		logger:   logger,
+		limiter:  limiter,
 		cfg:      cfg,
 	}
 	g.registerTools()
@@ -89,6 +97,14 @@ func (g *Gateway) registerTools() {
 	mcpsdk.AddTool(g.server,
 		&mcpsdk.Tool{Name: "receive_message", Description: "Fetch the next message from the agent's message stream."},
 		g.handleReceiveMessage,
+	)
+	mcpsdk.AddTool(g.server,
+		&mcpsdk.Tool{Name: "get_my_limits", Description: "Return the effective resource limits for this agent."},
+		g.handleGetMyLimits,
+	)
+	mcpsdk.AddTool(g.server,
+		&mcpsdk.Tool{Name: "get_my_policies", Description: "Return the communication policies that apply to this agent."},
+		g.handleGetMyPolicies,
 	)
 }
 

@@ -187,3 +187,46 @@ func TestNewHTTPEnforcer_InvalidURL(t *testing.T) {
 		})
 	}
 }
+
+// TestEmbeddedEnforcer_ListPoliciesFor verifies that EmbeddedEnforcer
+// implements PolicyQuerier and filters policies by agent ID.
+func TestEmbeddedEnforcer_ListPoliciesFor(t *testing.T) {
+	policies := []admin.CommunicationPolicy{
+		{ID: "p1", SourceID: "agent-a", TargetID: "agent-b", Action: "allow"},
+		{ID: "p2", SourceID: "agent-b", TargetID: "agent-a", Action: "allow"},
+		{ID: "p3", SourceID: "agent-c", TargetID: "agent-d", Action: "deny"},
+		{ID: "p4", SourceID: "*",       TargetID: "agent-a", Action: "deny"},
+	}
+	store := &mockPolicyStore{t: t, policies: policies}
+	enf := gateway.NewEmbeddedEnforcer(store, "org-1")
+
+	// Must implement PolicyQuerier.
+	querier, ok := any(enf).(gateway.PolicyQuerier)
+	if !ok {
+		t.Fatal("EmbeddedEnforcer does not implement PolicyQuerier")
+	}
+
+	got, err := querier.ListPoliciesFor(context.Background(), "agent-a")
+	if err != nil {
+		t.Fatalf("ListPoliciesFor: %v", err)
+	}
+	// Should return p1 (source=agent-a), p2 (target=agent-a), p4 (target=agent-a).
+	if len(got) != 3 {
+		t.Fatalf("got %d policies, want 3 (p1, p2, p4); got IDs: %v",
+			len(got), policyIDs(got))
+	}
+	// p3 should NOT appear.
+	for _, p := range got {
+		if p.ID == "p3" {
+			t.Error("p3 (unrelated to agent-a) should not be in results")
+		}
+	}
+}
+
+func policyIDs(ps []admin.CommunicationPolicy) []string {
+	ids := make([]string, len(ps))
+	for i, p := range ps {
+		ids[i] = p.ID
+	}
+	return ids
+}

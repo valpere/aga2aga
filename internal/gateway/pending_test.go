@@ -142,3 +142,20 @@ func TestPendingMap_StartCleanup_Idempotent(t *testing.T) {
 		t.Error("entry should have been evicted after TTL")
 	}
 }
+
+func TestPendingMap_CountByAgent(t *testing.T) {
+	pm := gateway.NewPendingMap()
+	pm.Store("task-1", "agent.tasks.agent-a", "redis-1")
+	pm.Store("task-2", "agent.tasks.agent-a", "redis-2")
+	pm.Store("task-3", "agent.tasks.agent-b", "redis-3")
+
+	if n := pm.CountByAgent("agent-a"); n != 2 {
+		t.Errorf("CountByAgent(agent-a) = %d, want 2", n)
+	}
+	if n := pm.CountByAgent("agent-b"); n != 1 {
+		t.Errorf("CountByAgent(agent-b) = %d, want 1", n)
+	}
+	if n := pm.CountByAgent("agent-c"); n != 0 {
+		t.Errorf("CountByAgent(agent-c) = %d, want 0", n)
+	}
+}
