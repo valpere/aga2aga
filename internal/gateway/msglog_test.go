@@ -2,6 +2,10 @@ package gateway_test
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -92,6 +96,74 @@ func TestEmbeddedMessageLogger_LogsEntry(t *testing.T) {
 	}
 	if got.Body != "hello" {
 		t.Errorf("Body = %q, want %q", got.Body, "hello")
+	}
+}
+
+func TestHTTPMessageLogger_PostsEntry(t *testing.T) {
+	var received []gateway.MessageLogEntry
+	var mu sync.Mutex
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Errorf("unexpected Authorization header: %s", r.Header.Get("Authorization"))
+		}
+		body, _ := io.ReadAll(r.Body)
+		var e gateway.MessageLogEntry
+		if err := json.Unmarshal(body, &e); err != nil {
+			t.Errorf("unmarshal: %v", err)
+		}
+		mu.Lock()
+		received = append(received, e)
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	logger, err := gateway.NewHTTPMessageLogger(srv.URL, "test-token")
+	if err != nil {
+		t.Fatalf("NewHTTPMessageLogger: %v", err)
+	}
+
+	entry := gateway.MessageLogEntry{
+		FromAgent: "agent-alpha", ToAgent: "agent-beta",
+		MsgType: "agent.message", Direction: "send", ToolName: "send_message",
+		BodySize: 5, Body: "hello",
+	}
+	logger.Log(context.Background(), entry)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(received)
+		mu.Unlock()
+		if n == 1 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 1 {
+		t.Fatalf("expected 1 posted entry, got %d", len(received))
+	}
+	got := received[0]
+	if got.FromAgent != "agent-alpha" || got.Direction != "send" || got.ToolName != "send_message" {
+		t.Errorf("unexpected entry: %+v", got)
+	}
+}
+
+func TestHTTPMessageLogger_InvalidURL(t *testing.T) {
+	_, err := gateway.NewHTTPMessageLogger("file:///etc/passwd", "token")
+	if err == nil {
+		t.Error("expected error for file:// scheme, got nil")
+	}
+	_, err = gateway.NewHTTPMessageLogger("", "token")
+	if err == nil {
+		t.Error("expected error for empty URL, got nil")
 	}
 }
 

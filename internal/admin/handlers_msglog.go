@@ -82,6 +82,7 @@ func (srv *Server) handleAPIMessageLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ingestEntry mirrors gateway.MessageLogEntry's JSON tags — keep in sync.
 	var entry struct {
 		EnvelopeID string `json:"EnvelopeID"`
 		ThreadID   string `json:"ThreadID"`
@@ -90,7 +91,6 @@ func (srv *Server) handleAPIMessageLog(w http.ResponseWriter, r *http.Request) {
 		MsgType    string `json:"MsgType"`
 		Direction  string `json:"Direction"`
 		ToolName   string `json:"ToolName"`
-		BodySize   int    `json:"BodySize"`
 		Body       string `json:"Body"`
 	}
 	if err := json.Unmarshal(body, &entry); err != nil {

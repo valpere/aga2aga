@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -17,15 +18,15 @@ import (
 // MessageLogEntry carries the data captured by each gateway tool handler before
 // it is written to the persistent log by the MessageLogger implementation.
 type MessageLogEntry struct {
-	EnvelopeID string
-	ThreadID   string
-	FromAgent  string
-	ToAgent    string
-	MsgType    string
-	Direction  string // "send" | "receive"
-	ToolName   string
-	BodySize   int
-	Body       string
+	EnvelopeID string `json:"EnvelopeID"`
+	ThreadID   string `json:"ThreadID"`
+	FromAgent  string `json:"FromAgent"`
+	ToAgent    string `json:"ToAgent"`
+	MsgType    string `json:"MsgType"`
+	Direction  string `json:"Direction"` // "send" | "receive"
+	ToolName   string `json:"ToolName"`
+	BodySize   int    `json:"BodySize"`
+	Body       string `json:"Body"`
 }
 
 // MessageLogger records inter-agent message traffic. Implementations must be
@@ -196,6 +197,8 @@ func (h *HTTPMessageLogger) Log(_ context.Context, entry MessageLogEntry) {
 			log.Printf("msglog: POST %s: %v", h.endpoint, err)
 			return
 		}
+		// Drain body so the connection can be reused by http.Transport.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 512))
 		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 			log.Printf("msglog: POST %s returned %s", h.endpoint, resp.Status)

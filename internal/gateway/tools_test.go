@@ -3,11 +3,13 @@ package gateway
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/valpere/aga2aga/pkg/document"
+	"github.com/valpere/aga2aga/pkg/protocol"
 	"github.com/valpere/aga2aga/pkg/transport"
 )
 
@@ -62,12 +64,42 @@ func (m *mockEnforcer) Allowed(_ context.Context, _, _ string) (bool, error) {
 	return m.allowed, m.err
 }
 
+// spyLogger records every MessageLogEntry passed to Log().
+type spyLogger struct {
+	mu      sync.Mutex
+	entries []MessageLogEntry
+}
+
+func (s *spyLogger) Log(_ context.Context, e MessageLogEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, e)
+}
+
+func (s *spyLogger) last() (MessageLogEntry, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.entries) == 0 {
+		return MessageLogEntry{}, false
+	}
+	return s.entries[len(s.entries)-1], true
+}
+
 // newTestGateway builds a Gateway with fast timeouts suitable for unit tests.
 func newTestGateway(t *testing.T, trans transport.Transport, enf PolicyEnforcer) *Gateway {
 	t.Helper()
 	cfg := DefaultConfig()
 	cfg.TaskReadTimeout = 50 * time.Millisecond
 	return New(trans, enf, nil, NewNoopMessageLogger(), cfg)
+}
+
+// newTestGatewayWithSpy builds a Gateway that records log entries via spyLogger.
+func newTestGatewayWithSpy(t *testing.T, trans transport.Transport, enf PolicyEnforcer) (*Gateway, *spyLogger) {
+	t.Helper()
+	cfg := DefaultConfig()
+	cfg.TaskReadTimeout = 50 * time.Millisecond
+	spy := &spyLogger{}
+	return New(trans, enf, nil, spy, cfg), spy
 }
 
 // --- heartbeat tests ------------------------------------------------------
@@ -725,5 +757,95 @@ func TestHandleReceiveMessage(t *testing.T) {
 				t.Errorf("acked = %v; want %v", trans.acked, tc.wantAcked)
 			}
 		})
+	}
+}
+
+// --- logging assertions for tool handlers ------------------------------------
+
+// makeDelivery builds a minimal transport.Delivery for use in handler tests.
+// Uses document.Document directly to avoid builder validation requiring all mandatory fields.
+func makeDelivery(from, msgType, body string) transport.Delivery {
+	doc := &document.Document{
+		Envelope: document.Envelope{
+			ID:   "env-test",
+			Type: protocol.MessageType(msgType),
+			From: from,
+		},
+		Body: body,
+	}
+	return transport.Delivery{MsgID: "msg-1", Doc: doc}
+}
+
+func TestHandleGetTask_Logs(t *testing.T) {
+	ch := make(chan transport.Delivery, 1)
+	ch <- makeDelivery("orchestrator", "task.request", "do work")
+	trans := &mockTransport{ch: map[string]chan transport.Delivery{"agent.tasks.agent-a": ch}}
+	enf := &mockEnforcer{allowed: true}
+	g, spy := newTestGatewayWithSpy(t, trans, enf)
+
+	_, _, err := g.handleGetTask(context.Background(), nil, getTaskIn{Agent: "agent-a"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	entry, ok := spy.last()
+	if !ok {
+		t.Fatal("expected log entry, got none")
+	}
+	if entry.Direction != "receive" {
+		t.Errorf("Direction = %q, want receive", entry.Direction)
+	}
+	if entry.ToolName != "get_task" {
+		t.Errorf("ToolName = %q, want get_task", entry.ToolName)
+	}
+	if entry.ToAgent != "agent-a" {
+		t.Errorf("ToAgent = %q, want agent-a", entry.ToAgent)
+	}
+}
+
+func TestHandleSendMessage_Logs(t *testing.T) {
+	trans := &mockTransport{}
+	enf := &mockEnforcer{allowed: true}
+	g, spy := newTestGatewayWithSpy(t, trans, enf)
+
+	in := sendMessageIn{Agent: "agent-a", To: "agent-b", Body: "hello"}
+	_, _, err := g.handleSendMessage(context.Background(), nil, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	entry, ok := spy.last()
+	if !ok {
+		t.Fatal("expected log entry, got none")
+	}
+	if entry.Direction != "send" {
+		t.Errorf("Direction = %q, want send", entry.Direction)
+	}
+	if entry.ToolName != "send_message" {
+		t.Errorf("ToolName = %q, want send_message", entry.ToolName)
+	}
+	if entry.FromAgent != "agent-a" || entry.ToAgent != "agent-b" {
+		t.Errorf("FromAgent/ToAgent = %q/%q, want agent-a/agent-b", entry.FromAgent, entry.ToAgent)
+	}
+}
+
+func TestHandleReceiveMessage_Logs(t *testing.T) {
+	ch := make(chan transport.Delivery, 1)
+	ch <- makeDelivery("agent-b", "agent.message", "reply")
+	trans := &mockTransport{ch: map[string]chan transport.Delivery{"agent.messages.agent-a": ch}}
+	enf := &mockEnforcer{allowed: true}
+	g, spy := newTestGatewayWithSpy(t, trans, enf)
+
+	_, _, err := g.handleReceiveMessage(context.Background(), nil, receiveMessageIn{Agent: "agent-a"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	entry, ok := spy.last()
+	if !ok {
+		t.Fatal("expected log entry, got none")
+	}
+	if entry.Direction != "receive" {
+		t.Errorf("Direction = %q, want receive", entry.Direction)
+	}
+	if entry.ToolName != "receive_message" {
+		t.Errorf("ToolName = %q, want receive_message", entry.ToolName)
 	}
 }
