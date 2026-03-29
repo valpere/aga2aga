@@ -104,11 +104,8 @@ func (srv *Server) handleAPIMessageLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if entry.ToAgent != "" && !admin.IsValidAgentID(entry.ToAgent) {
-		// "orchestrator" is a well-known non-agent target used by gateway tools.
-		if entry.ToAgent != "orchestrator" {
-			http.Error(w, `{"error":"invalid to_agent"}`, http.StatusBadRequest)
-			return
-		}
+		http.Error(w, `{"error":"invalid to_agent"}`, http.StatusBadRequest)
+		return
 	}
 	if !validMsgLogDirections[entry.Direction] {
 		http.Error(w, `{"error":"invalid direction"}`, http.StatusBadRequest)
