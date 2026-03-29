@@ -62,11 +62,11 @@ docker-images: docker docker-admin
 
 ## up-infra: start Redis and Admin UI only (first-time setup: create ADMIN_API_KEY)
 up-infra:
-	$(COMPOSE) up -d redis admin
+	$(COMPOSE) up -d --force-recreate redis admin
 
 ## up: start all services (requires ADMIN_API_KEY in .env.local)
 up:
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d --force-recreate
 
 ## down: stop all services
 down:

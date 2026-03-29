@@ -31,6 +31,9 @@ go.work.sum
 # Local SQLite database (created when admin runs outside Docker)
 *.db
 
+# MCP config — contains no secrets but is machine-specific
+.mcp.json
+
 # Claude Code local overrides — machine-specific, not for the team
 .claude/settings.local.json
 
