@@ -13,6 +13,15 @@ import (
 	"github.com/valpere/aga2aga/pkg/admin"
 )
 
+// PolicyTargetOrchestrator is the target identifier used in policy checks for
+// tools that interact with the orchestration layer: get_task, complete_task,
+// fail_task, and receive_message. Operators must create an allow policy with
+// this target for each agent that needs to use these tools.
+//
+// The value is a plain string stored in the policy database — do not change it
+// without a migration, as existing policies would silently stop matching.
+const PolicyTargetOrchestrator = "orchestrator"
+
 // PolicyEnforcer checks whether a source agent is allowed to communicate
 // with a target agent under the current policy set.
 type PolicyEnforcer interface {

@@ -15,6 +15,7 @@
       <label for="source_id">Source</label>
       <select id="source_id" name="source_id">
         <option value="*" {{if eq .Policy.SourceID "*"}}selected{{end}}>* (any)</option>
+        <option value="orchestrator" {{if eq .Policy.SourceID "orchestrator"}}selected{{end}}>orchestrator — task/message infrastructure</option>
         {{range .Agents}}
         <option value="{{.AgentID}}" {{if eq $.Policy.SourceID .AgentID}}selected{{end}}>{{.AgentID}}{{if .DisplayName}} — {{.DisplayName}}{{end}}</option>
         {{end}}
@@ -24,6 +25,7 @@
       <label for="target_id">Target</label>
       <select id="target_id" name="target_id">
         <option value="*" {{if eq .Policy.TargetID "*"}}selected{{end}}>* (any)</option>
+        <option value="orchestrator" {{if eq .Policy.TargetID "orchestrator"}}selected{{end}}>orchestrator — task/message infrastructure</option>
         {{range .Agents}}
         <option value="{{.AgentID}}" {{if eq $.Policy.TargetID .AgentID}}selected{{end}}>{{.AgentID}}{{if .DisplayName}} — {{.DisplayName}}{{end}}</option>
         {{end}}

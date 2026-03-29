@@ -223,6 +223,17 @@ func TestEmbeddedEnforcer_ListPoliciesFor(t *testing.T) {
 	}
 }
 
+// TestPolicyTargetOrchestrator_Value guards against accidental changes to the
+// sentinel string that would silently break existing policies stored in deployed
+// databases (source_id / target_id are plain strings — no schema migration would
+// catch a rename).
+func TestPolicyTargetOrchestrator_Value(t *testing.T) {
+	if gateway.PolicyTargetOrchestrator != "orchestrator" {
+		t.Fatalf("PolicyTargetOrchestrator = %q, want %q — changing this value would break existing policies in deployed databases",
+			gateway.PolicyTargetOrchestrator, "orchestrator")
+	}
+}
+
 func policyIDs(ps []admin.CommunicationPolicy) []string {
 	ids := make([]string, len(ps))
 	for i, p := range ps {
