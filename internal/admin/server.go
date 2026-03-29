@@ -87,6 +87,13 @@ func (srv *Server) Handler() http.Handler {
 
 	mux.Handle("GET /messages", protected(http.HandlerFunc(srv.handleMessageLogList)))
 
+	mux.Handle("GET /limits", protected(http.HandlerFunc(srv.handleLimitsList)))
+	mux.Handle("GET /limits/new", protected(http.HandlerFunc(srv.handleLimitsNewGet)))
+	mux.Handle("POST /limits/new", protected(requireRole(admin.RoleOperator, srv.handleLimitsNewPost)))
+	mux.Handle("GET /limits/{id}/edit", protected(http.HandlerFunc(srv.handleLimitsEditGet)))
+	mux.Handle("POST /limits/{id}/edit", protected(requireRole(admin.RoleOperator, srv.handleLimitsEditPost)))
+	mux.Handle("POST /limits/{id}/delete", protected(requireRole(admin.RoleOperator, srv.handleLimitsDelete)))
+
 	mux.Handle("GET /api-keys", protected(requireRole(admin.RoleAdmin, srv.handleAPIKeyList)))
 	mux.Handle("POST /api-keys/new", protected(requireRole(admin.RoleAdmin, srv.handleAPIKeyNewPost)))
 	mux.Handle("POST /api-keys/{id}/revoke", protected(requireRole(admin.RoleAdmin, srv.handleAPIKeyRevoke)))
@@ -95,6 +102,7 @@ func (srv *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/evaluate", srv.handleAPIEvaluate)
 	mux.HandleFunc("POST /api/v1/auth", srv.handleAPIAuth)
 	mux.HandleFunc("POST /api/v1/message-log", srv.handleAPIMessageLog)
+	mux.HandleFunc("GET /api/v1/limits/check", srv.handleAPILimitsCheck)
 
 	return mux
 }

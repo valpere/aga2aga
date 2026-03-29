@@ -1,0 +1,54 @@
+{{template "layout.html" .}}
+{{define "title"}}Limits — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>Agent Limits</h1>
+  <div class="actions">
+    {{if .CanEdit}}<a href="/limits/new" class="btn btn-primary btn-sm">Add Limit</a>{{end}}
+  </div>
+</div>
+
+<div class="card">
+  <p class="text-muted mb1" style="font-size:.875rem">
+    Per-agent resource limits. Use <code>*</code> as Agent ID to set global defaults. All values 0 = unlimited.
+  </p>
+
+  {{if .Limits}}
+  <table>
+    <thead>
+      <tr>
+        <th>Agent ID</th>
+        <th>Max Body (bytes)</th>
+        <th>Max Send/min</th>
+        <th>Max Pending Tasks</th>
+        <th>Stream MAXLEN</th>
+        <th>Updated</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range .Limits}}
+    <tr>
+      <td><code>{{.AgentID}}</code>{{if eq .AgentID "*"}} <span class="badge">global default</span>{{end}}</td>
+      <td>{{if .MaxBodyBytes}}{{.MaxBodyBytes}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+      <td>{{if .MaxSendPerMin}}{{.MaxSendPerMin}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+      <td>{{if .MaxPendingTasks}}{{.MaxPendingTasks}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+      <td>{{if .MaxStreamLen}}{{.MaxStreamLen}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+      <td class="text-muted" style="white-space:nowrap">{{.UpdatedAt.Format "2006-01-02 15:04"}}</td>
+      <td>
+        {{if $.CanEdit}}
+        <a href="/limits/{{.ID}}/edit" class="btn btn-sm btn-secondary">Edit</a>
+        <form method="POST" action="/limits/{{.ID}}/delete" style="display:inline">
+          <button class="btn btn-sm btn-danger">Delete</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">No limits configured. <a href="/limits/new">Add one.</a></p>
+  {{end}}
+</div>
+{{end}}

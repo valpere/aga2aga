@@ -1,0 +1,39 @@
+{{template "layout.html" .}}
+{{define "title"}}{{if .IsNew}}Add Limit{{else}}Edit Limit{{end}} — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>{{if .IsNew}}Add Limit{{else}}Edit Limit{{end}}</h1>
+  <div class="actions">
+    <a href="/limits" class="btn btn-secondary btn-sm">Cancel</a>
+  </div>
+</div>
+
+<div class="card" style="max-width:500px">
+  {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+  <form method="POST" action="{{if .IsNew}}/limits/new{{else}}/limits/{{.Limit.ID}}/edit{{end}}">
+    <div class="form-group">
+      <label for="agent_id">Agent ID</label>
+      <input type="text" id="agent_id" name="agent_id" value="{{.Limit.AgentID}}" placeholder="agent-name or * for global default">
+      <div class="form-hint">Use <code>*</code> to set global defaults applied to all agents.</div>
+    </div>
+    <div class="form-group">
+      <label for="max_body_bytes">Max Body Size (bytes)</label>
+      <input type="number" id="max_body_bytes" name="max_body_bytes" value="{{.Limit.MaxBodyBytes}}" min="0" placeholder="0 = unlimited">
+    </div>
+    <div class="form-group">
+      <label for="max_send_per_min">Max Send per Minute</label>
+      <input type="number" id="max_send_per_min" name="max_send_per_min" value="{{.Limit.MaxSendPerMin}}" min="0" placeholder="0 = unlimited">
+    </div>
+    <div class="form-group">
+      <label for="max_pending">Max Pending Tasks</label>
+      <input type="number" id="max_pending" name="max_pending" value="{{.Limit.MaxPendingTasks}}" min="0" placeholder="0 = unlimited">
+    </div>
+    <div class="form-group">
+      <label for="max_stream_len">Stream MAXLEN</label>
+      <input type="number" id="max_stream_len" name="max_stream_len" value="{{.Limit.MaxStreamLen}}" min="0" placeholder="0 = unlimited">
+      <div class="form-hint">Redis XADD MAXLEN — caps the Redis stream backlog for this agent.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">{{if .IsNew}}Add Limit{{else}}Save Changes{{end}}</button>
+  </form>
+</div>
+{{end}}
