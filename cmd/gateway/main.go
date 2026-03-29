@@ -19,6 +19,7 @@
 //	--agent-id           Gateway identity used in policy checks (default: mcp-gateway)
 //	--task-read-timeout   Max wait for a task delivery in get_task (default: 5s)
 //	--require-agent-key   Require a valid role=agent API key with every MCP tool call (default: false)
+//	--enforce-limits      Enforce per-agent resource limits from the admin store (default: false)
 package main
 
 import (
@@ -53,8 +54,9 @@ func main() {
 	agentID := flag.String("agent-id", "mcp-gateway", "Gateway identity used in policy checks")
 	taskReadTimeout := flag.Duration("task-read-timeout", 5*time.Second, "Max wait for a task delivery in get_task")
 	requireAgentKey := flag.Bool("require-agent-key", false, "Require agents to present a valid role=agent API key with every MCP tool call")
-	messageLog   := flag.Bool("message-log", true, "Log inter-agent message traffic to the admin store")
-	gatewayOrgID := flag.String("gateway-org-id", "default", "Organization ID used when writing message logs")
+	messageLog    := flag.Bool("message-log", true, "Log inter-agent message traffic to the admin store")
+	enforceLimits := flag.Bool("enforce-limits", false, "Enforce per-agent resource limits from the admin store")
+	gatewayOrgID  := flag.String("gateway-org-id", "default", "Organization ID used when writing message logs and limit lookups")
 	flag.Parse()
 
 	// SECURITY: prefer ADMIN_API_KEY env var over --admin-api-key flag.
@@ -109,7 +111,12 @@ func main() {
 		defer closeMsgLogger()
 	}
 
-	gw := gateway.New(trans, enf, auth, msgLogger, nil, cfg)
+	limiter, closeLimiter := mustLimitEnforcer(*enforceLimits, *policyMode, *adminDB, *gatewayOrgID)
+	if closeLimiter != nil {
+		defer closeLimiter()
+	}
+
+	gw := gateway.New(trans, enf, auth, msgLogger, limiter, cfg)
 
 	// Root context cancelled on SIGINT / SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -265,6 +272,38 @@ func mustMessageLogger(enabled bool, mode, adminDB, adminURL, adminAPIKey, orgID
 	default:
 		log.Printf("message logging: unknown policy mode %q; logging disabled", mode)
 		return gateway.NewNoopMessageLogger(), nil
+	}
+}
+
+// mustLimitEnforcer returns a LimitEnforcer for the given mode.
+// When disabled (--enforce-limits=false), returns NoopLimitEnforcer.
+// In embedded mode, opens a new SQLite connection and returns EmbeddedLimitEnforcer.
+// In remote mode, returns NoopLimitEnforcer (HTTPLimitEnforcer is a Phase 3 stub).
+func mustLimitEnforcer(enabled bool, mode, adminDB, orgID string) (gateway.LimitEnforcer, func()) {
+	if !enabled {
+		log.Printf("limit enforcement disabled (--enforce-limits=false)")
+		return gateway.NewNoopLimitEnforcer(), nil
+	}
+	switch mode {
+	case "embedded":
+		// SECURITY: resolve symlinks (CWE-22/61).
+		resolvedDB, err := filepath.EvalSymlinks(adminDB)
+		if err != nil {
+			log.Fatalf("resolve admin-db path for limit enforcer: %v", err)
+		}
+		store, err := iadmin.NewSQLiteStore(resolvedDB)
+		if err != nil {
+			log.Fatalf("open admin store for limit enforcer: %v", err)
+		}
+		limiter := gateway.NewEmbeddedLimitEnforcer(store, orgID)
+		log.Printf("limit enforcement enabled (embedded store)")
+		return limiter, func() { _ = store.Close() }
+	case "remote":
+		log.Printf("limit enforcement: remote mode not yet implemented; using noop")
+		return gateway.NewNoopLimitEnforcer(), nil
+	default:
+		log.Printf("limit enforcement: unknown policy mode %q; using noop", mode)
+		return gateway.NewNoopLimitEnforcer(), nil
 	}
 }
 
