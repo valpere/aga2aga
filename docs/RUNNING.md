@@ -117,7 +117,8 @@ curl -s -o /dev/null -w '%{http_code}' \
 # Stop all services (data is preserved in the admin-data volume)
 make down
 
-# Restart — key is loaded from .env.local automatically
+# Restart — key is loaded from .env.local; containers are force-recreated
+# so any changes to .env.local (e.g. rotated ADMIN_API_KEY) take effect
 make up
 ```
 
@@ -246,6 +247,20 @@ make up-infra
 ```
 
 Then rebuild an API key (Step 3 above).
+
+### Gateway returns 401 on policy checks after key rotation
+
+Docker does not hot-reload environment variables. If you change `ADMIN_API_KEY` in `.env.local` while containers are running, the gateway container keeps the old value. `make up` now uses `--force-recreate` to prevent this, but if you see 401 errors after rotating a key:
+
+```bash
+make down && make up
+```
+
+Verify the container has the new key:
+
+```bash
+docker inspect docker-gateway-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep ADMIN_API_KEY
+```
 
 ### Gateway exits immediately
 
