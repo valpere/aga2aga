@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/valpere/aga2aga/pkg/admin"
 	"github.com/valpere/aga2aga/pkg/document"
+	"github.com/valpere/aga2aga/pkg/protocol"
 )
 
 type messageLogPage struct {
@@ -48,9 +49,18 @@ func (srv *Server) handleMessageLogList(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// validMsgLogDirections is the set of allowed direction values.
+var validMsgLogDirections = map[string]bool{"send": true, "receive": true}
+
+// validMsgLogTools is the set of MCP tool names that may appear in a log entry.
+var validMsgLogTools = map[string]bool{
+	"send_message": true, "receive_message": true,
+	"get_task": true, "complete_task": true, "fail_task": true,
+}
+
 // handleAPIMessageLog is the JSON ingest endpoint used by HTTPMessageLogger.
 // It accepts POST /api/v1/message-log with a JSON body matching MessageLogEntry.
-// Protected by Bearer token (any active non-revoked key is accepted).
+// Protected by Bearer token — callers must have role operator or admin (CWE-285).
 //
 // POST /api/v1/message-log
 // Authorization: Bearer <api-key>
@@ -59,7 +69,9 @@ func (srv *Server) handleMessageLogList(w http.ResponseWriter, r *http.Request) 
 // Response: 204 No Content on success.
 func (srv *Server) handleAPIMessageLog(w http.ResponseWriter, r *http.Request) {
 	k := srv.apiKeyFromRequest(r)
-	if k == nil {
+	// SECURITY: restrict to operator/admin roles; viewer and agent keys must not
+	// be able to inject log entries (CWE-285).
+	if k == nil || (k.Role != admin.RoleOperator && k.Role != admin.RoleAdmin) {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
@@ -86,6 +98,31 @@ func (srv *Server) handleAPIMessageLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY: validate caller-supplied identifiers and enum fields (CWE-20).
+	if entry.FromAgent != "" && !admin.IsValidAgentID(entry.FromAgent) {
+		http.Error(w, `{"error":"invalid from_agent"}`, http.StatusBadRequest)
+		return
+	}
+	if entry.ToAgent != "" && !admin.IsValidAgentID(entry.ToAgent) {
+		// "orchestrator" is a well-known non-agent target used by gateway tools.
+		if entry.ToAgent != "orchestrator" {
+			http.Error(w, `{"error":"invalid to_agent"}`, http.StatusBadRequest)
+			return
+		}
+	}
+	if !validMsgLogDirections[entry.Direction] {
+		http.Error(w, `{"error":"invalid direction"}`, http.StatusBadRequest)
+		return
+	}
+	if !validMsgLogTools[entry.ToolName] {
+		http.Error(w, `{"error":"invalid tool_name"}`, http.StatusBadRequest)
+		return
+	}
+	if _, ok := protocol.Lookup(protocol.MessageType(entry.MsgType)); !ok {
+		http.Error(w, `{"error":"invalid msg_type"}`, http.StatusBadRequest)
+		return
+	}
+
 	m := &admin.MessageLog{
 		ID:         uuid.NewString(),
 		OrgID:      k.OrgID,
@@ -96,9 +133,10 @@ func (srv *Server) handleAPIMessageLog(w http.ResponseWriter, r *http.Request) {
 		MsgType:    entry.MsgType,
 		Direction:  entry.Direction,
 		ToolName:   entry.ToolName,
-		BodySize:   entry.BodySize,
-		Body:       entry.Body,
-		CreatedAt:  time.Now().UTC(),
+		// SECURITY: always compute server-side to prevent audit integrity bypass (CWE-20).
+		BodySize:  len(entry.Body),
+		Body:      entry.Body,
+		CreatedAt: time.Now().UTC(),
 	}
 	if err := srv.store.AppendMessageLog(r.Context(), m); err != nil {
 		http.Error(w, `{"error":"store error"}`, http.StatusInternalServerError)

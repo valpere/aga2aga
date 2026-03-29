@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -139,26 +141,44 @@ func (l *EmbeddedMessageLogger) write(entry MessageLogEntry) {
 
 // --- HTTPMessageLogger ---
 
+const httpLoggerMaxConcurrent = 32
+
 // HTTPMessageLogger posts log entries to POST /api/v1/message-log on the admin
-// server. Each call fires a goroutine (fire-and-forget); errors are logged.
+// server. Each call enqueues a goroutine (fire-and-forget) up to a concurrency
+// cap; excess entries are dropped with a WARN log (CWE-400).
 type HTTPMessageLogger struct {
 	endpoint string
 	token    string
 	client   *http.Client
+	sem      chan struct{} // limits concurrent in-flight HTTP posts
 }
 
 // NewHTTPMessageLogger returns a logger that posts to baseURL+"/api/v1/message-log"
 // using the given Bearer token.
-func NewHTTPMessageLogger(baseURL, token string) *HTTPMessageLogger {
+// Returns an error if baseURL is not a valid http/https URL with a non-empty host (CWE-918).
+func NewHTTPMessageLogger(baseURL, token string) (*HTTPMessageLogger, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("gateway/msglog: invalid admin baseURL %q: must be http or https with non-empty host (CWE-918)", baseURL)
+	}
 	return &HTTPMessageLogger{
 		endpoint: baseURL + "/api/v1/message-log",
 		token:    token,
 		client:   &http.Client{Timeout: 5 * time.Second},
-	}
+		sem:      make(chan struct{}, httpLoggerMaxConcurrent),
+	}, nil
 }
 
 func (h *HTTPMessageLogger) Log(_ context.Context, entry MessageLogEntry) {
+	select {
+	case h.sem <- struct{}{}:
+	default:
+		log.Printf("msglog: HTTP semaphore full — dropping entry from=%s tool=%s",
+			entry.FromAgent, entry.ToolName)
+		return
+	}
 	go func() {
+		defer func() { <-h.sem }()
 		body, err := json.Marshal(entry)
 		if err != nil {
 			log.Printf("msglog: marshal: %v", err)

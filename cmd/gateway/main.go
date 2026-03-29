@@ -53,7 +53,8 @@ func main() {
 	agentID := flag.String("agent-id", "mcp-gateway", "Gateway identity used in policy checks")
 	taskReadTimeout := flag.Duration("task-read-timeout", 5*time.Second, "Max wait for a task delivery in get_task")
 	requireAgentKey := flag.Bool("require-agent-key", false, "Require agents to present a valid role=agent API key with every MCP tool call")
-	messageLog := flag.Bool("message-log", true, "Log inter-agent message traffic to the admin store")
+	messageLog   := flag.Bool("message-log", true, "Log inter-agent message traffic to the admin store")
+	gatewayOrgID := flag.String("gateway-org-id", "default", "Organization ID used when writing message logs")
 	flag.Parse()
 
 	// SECURITY: prefer ADMIN_API_KEY env var over --admin-api-key flag.
@@ -103,7 +104,7 @@ func main() {
 	cfg.PendingTTL = *pendingTTL
 
 	// Message logger (nil-safe: New treats nil as NoopMessageLogger).
-	msgLogger, closeMsgLogger := mustMessageLogger(*messageLog, *policyMode, *adminDB)
+	msgLogger, closeMsgLogger := mustMessageLogger(*messageLog, *policyMode, *adminDB, *gatewayOrgID)
 	if closeMsgLogger != nil {
 		defer closeMsgLogger()
 	}
@@ -230,7 +231,7 @@ func mustAuthenticator(mode, adminDB, adminURL string) (gateway.AgentAuthenticat
 // or a NoopMessageLogger when --message-log=false. Uses embedded mode only
 // (the admin server holds the store; the gateway logs into the same DB file).
 // Returns a close function if a new SQLite connection was opened.
-func mustMessageLogger(enabled bool, mode, adminDB string) (gateway.MessageLogger, func()) {
+func mustMessageLogger(enabled bool, mode, adminDB, orgID string) (gateway.MessageLogger, func()) {
 	if !enabled {
 		log.Printf("message logging disabled (--message-log=false)")
 		return gateway.NewNoopMessageLogger(), nil
@@ -249,8 +250,7 @@ func mustMessageLogger(enabled bool, mode, adminDB string) (gateway.MessageLogge
 	if err != nil {
 		log.Fatalf("open admin store for message logger: %v", err)
 	}
-	// orgID "default" matches the seeded org created by aga2aga-admin on first run.
-	logger := gateway.NewEmbeddedMessageLogger(store, "default")
+	logger := gateway.NewEmbeddedMessageLogger(store, orgID)
 	return logger, func() {
 		logger.Close()
 		_ = store.Close()
