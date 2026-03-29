@@ -2,6 +2,14 @@ import { test, expect } from '@playwright/test';
 
 const agentID = `e2e-agent-${Date.now()}`;
 
+test.afterAll(async ({ browser }) => {
+  const context = await browser.newContext({ storageState: '.auth/state.json' });
+  const page = await context.newPage();
+  await page.goto(`/agents/${agentID}`);
+  await page.locator('form[action$="/revoke"] button').click();
+  await context.close();
+});
+
 test('register a new agent', async ({ page }) => {
   await page.goto('/agents/new');
   await page.locator('#agent_id').fill(agentID);
