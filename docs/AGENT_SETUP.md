@@ -85,10 +85,12 @@ Save to `.mcp.json` in your project root (Claude Code), or see [Configuring MCP 
 **Step 2 — Verify** with `heartbeat`:
 
 ```json
-{ "agent": "your-agent-id", "api_key": "your-api-key" }
+{ "agent": "your-agent-id" }
 ```
 
 Expected response: `{ "status": "ok" }`
+
+> **`api_key` is optional by default.** When the gateway runs without `--require-agent-key` (the default), the `api_key` field can be omitted from all tool calls. The `agent` field is always required. If you were given an `api_key`, include it: `{ "agent": "your-agent-id", "api_key": "your-api-key" }`.
 
 **Step 3 — Send a message** to a sibling agent:
 
@@ -155,6 +157,16 @@ In stdio transport each agent runs its own gateway subprocess. You can set these
 Explicit values in a tool call always take precedence over the env defaults. Both variables are silently ignored (with a startup warning) when using HTTP transport — in that mode each agent must pass its credentials in every tool call.
 
 > **Gitignore:** Any config file containing `AGA2AGA_API_KEY` must be listed in `.gitignore` — it holds a raw secret.
+
+### Choosing a Transport
+
+| | stdio (recommended) | HTTP |
+|---|---|---|
+| **Architecture** | Agent spawns gateway as a child process; one gateway per agent | Gateway is a shared long-lived server; multiple agents connect |
+| **Lifecycle** | Agent controls start/stop | Operator manages independently (e.g. Docker Compose) |
+| **Credentials** | Set `AGA2AGA_AGENT_NAME` + `AGA2AGA_API_KEY` once in the `env:` block | Pass `agent` (and `api_key` if required) in every tool call |
+| **When to use** | Single agent on one machine; simplest setup | Multi-agent deployments; gateway already running as a service |
+| **Note** | — | Agent CLI must be (re)started **after** the gateway is available — MCP tools are discovered at session startup, not dynamically |
 
 ---
 
@@ -238,6 +250,8 @@ Use when the gateway is a separate long-lived process (e.g. in Docker Compose).
 
 > **Docker Compose:** the gateway listens on `:3000` inside the container; Docker maps it to `3001` on the host by default. Use the host port (`3001`) in your config. Run `docker compose ps` to confirm the mapping.
 
+> **Tool discovery timing:** MCP tools are discovered when the agent session starts. If the gateway was not running at that point, restart your agent session (or start a new conversation) after the gateway is available. You should then see `mcp__aga2aga__heartbeat` and 7 other tools listed.
+
 Start the gateway manually with:
 
 ```bash
@@ -284,11 +298,10 @@ Add this config file to `.gitignore` since it contains `AGA2AGA_API_KEY`.
 
 ```toml
 [mcp_servers.aga2aga]
-url                  = "http://localhost:3001"
-bearer_token_env_var = "ADMIN_API_KEY"
+url = "http://localhost:3001"
 ```
 
-`bearer_token_env_var` names an environment variable whose value is sent as `Authorization: Bearer <value>`. The variable must be set in the shell that launches Codex.
+The gateway HTTP endpoint requires no transport-level authorization. Your `agent` (and `api_key`, if `--require-agent-key` is enabled) go in each tool call argument, not in the connection config.
 
 ---
 
@@ -334,16 +347,13 @@ Use `"httpUrl"` for MCP Streamable-HTTP. (Using `"url"` selects the older SSE tr
 {
   "mcpServers": {
     "aga2aga": {
-      "httpUrl": "http://localhost:3001",
-      "headers": {
-        "Authorization": "Bearer ${ADMIN_API_KEY}"
-      }
+      "httpUrl": "http://localhost:3001"
     }
   }
 }
 ```
 
-Gemini CLI expands `$VAR` and `${VAR}` in `env` and `headers` values from the shell environment.
+The gateway HTTP endpoint requires no transport-level authorization. Your `agent` (and `api_key` if required) go in each tool call argument.
 
 ---
 
@@ -394,16 +404,13 @@ Add this config file to `.gitignore` since it contains `AGA2AGA_API_KEY`.
   "mcp": {
     "aga2aga": {
       "type": "remote",
-      "url": "http://localhost:3001",
-      "headers": {
-        "Authorization": "Bearer {env:ADMIN_API_KEY}"
-      }
+      "url": "http://localhost:3001"
     }
   }
 }
 ```
 
-OpenCode uses `{env:VAR}` syntax (not `$VAR`) to reference environment variables in header values.
+The gateway HTTP endpoint requires no transport-level authorization. Your `agent` (and `api_key` if required) go in each tool call argument.
 
 ---
 
@@ -991,7 +998,7 @@ AGA2AGA_API_KEY    = "aga2_ag_..."
 ```python
 import httpx, json, time
 
-GATEWAY = "http://localhost:3000/mcp"
+GATEWAY = "http://localhost:3001"
 AGENT   = "my-python-agent"
 
 def call_tool(name: str, args: dict) -> dict:
