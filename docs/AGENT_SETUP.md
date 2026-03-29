@@ -7,14 +7,15 @@ How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI, and OpenCode C
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Prerequisites](#prerequisites)
+2. [Quickstart](#quickstart)
+3. [Prerequisites](#prerequisites)
    - [Authentication](#authentication)
-3. [Configuring MCP Connections](#configuring-mcp-connections)
+4. [Configuring MCP Connections](#configuring-mcp-connections)
    - [Claude Code](#claude-code)
    - [Codex CLI](#codex-cli)
    - [Gemini CLI](#gemini-cli)
    - [OpenCode CLI](#opencode-cli)
-4. [MCP Tools](#mcp-tools)
+5. [MCP Tools](#mcp-tools)
    - [get_task](#get_task)
    - [complete_task](#complete_task)
    - [fail_task](#fail_task)
@@ -23,12 +24,12 @@ How to configure an AI agent (Claude Code, Codex CLI, Gemini CLI, and OpenCode C
    - [receive_message](#receive_message)
    - [get_my_limits](#get_my_limits)
    - [get_my_policies](#get_my_policies)
-5. [Conversation Loop](#conversation-loop)
-6. [Agent ID Rules](#agent-id-rules)
-7. [Task Body Format](#task-body-format)
-8. [Error Reference](#error-reference)
-9. [CLI Flag Reference](#cli-flag-reference)
-10. [Full Examples](#full-examples)
+6. [Conversation Loop](#conversation-loop)
+7. [Agent ID Rules](#agent-id-rules)
+8. [Task Body Format](#task-body-format)
+9. [Error Reference](#error-reference)
+10. [CLI Flag Reference](#cli-flag-reference)
+11. [Full Examples](#full-examples)
 
 ---
 
@@ -60,6 +61,45 @@ The agent polls `get_task`, does its work, then calls `complete_task` or `fail_t
 
 ---
 
+## Quickstart
+
+If the gateway is already running and you have been given an `agent_id` and `api_key`:
+
+**Step 1 — Add the gateway to your MCP config** (replace `localhost:3001` with the actual host):
+
+```json
+{
+  "mcpServers": {
+    "aga2aga": {
+      "type": "http",
+      "url": "http://localhost:3001"
+    }
+  }
+}
+```
+
+Save to `.mcp.json` in your project root (Claude Code), or see [Configuring MCP Connections](#configuring-mcp-connections) for Codex CLI, Gemini CLI, and OpenCode CLI syntax.
+
+> **No credentials in the config.** Your `api_key` goes in each **tool call argument** — not in the connection config above.
+
+**Step 2 — Verify** with `heartbeat`:
+
+```json
+{ "agent": "your-agent-id", "api_key": "your-api-key" }
+```
+
+Expected response: `{ "status": "ok" }`
+
+**Step 3 — Send a message** to a sibling agent:
+
+```json
+{ "agent": "your-agent-id", "to": "sibling-agent-id", "body": "hello", "api_key": "your-api-key" }
+```
+
+> **Policy required:** `send_message` only succeeds if an `allow` policy exists for your agent → the recipient. If you get `gateway: agent "X" not allowed to communicate with "Y"`, ask the operator to add the policy in Admin UI → Policies.
+
+---
+
 ## Prerequisites
 
 | Requirement | Notes |
@@ -69,6 +109,10 @@ The agent polls `get_task`, does its work, then calls `complete_task` or `fail_t
 | Policy entry allowing the agent | Admin UI → Policies → allow `<your-agent-id>` → `orchestrator` |
 
 ### Authentication
+
+> **Two kinds of credentials — don't mix them up:**
+> - **`ADMIN_API_KEY`** — used by the **gateway process** to authenticate with the Admin API. Goes in the gateway's startup environment (`env:` block in stdio config). Agents never need this.
+> - **`api_key`** — used by **agents** in each MCP tool call argument. Created in Admin UI → API Keys with `role=agent`.
 
 When the gateway runs with `--require-agent-key`, every MCP tool call must include a valid API key bound to the calling agent.
 
@@ -169,14 +213,16 @@ Use when the gateway is a separate long-lived process (e.g. in Docker Compose).
 {
   "mcpServers": {
     "aga2aga": {
-      "type": "sse",
-      "url": "http://localhost:3000/mcp"
+      "type": "http",
+      "url": "http://localhost:3001"
     }
   }
 }
 ```
 
-Start the gateway with:
+> **Docker Compose:** the gateway listens on `:3000` inside the container; Docker maps it to `3001` on the host by default. Use the host port (`3001`) in your config. Run `docker compose ps` to confirm the mapping.
+
+Start the gateway manually with:
 
 ```bash
 ADMIN_API_KEY=<key> aga2aga-gateway \
@@ -186,8 +232,6 @@ ADMIN_API_KEY=<key> aga2aga-gateway \
   --policy-mode   remote \
   --admin-url     http://localhost:8087
 ```
-
-> **Note:** The HTTP transport uses MCP Streamable-HTTP with SSE for server-to-client streaming. Use `"type": "sse"` (legacy) or `"type": "http"` (streamable) depending on your Claude Code version.
 
 ---
 
@@ -221,7 +265,7 @@ ADMIN_API_KEY = "aga2_op_abc123..."
 
 ```toml
 [mcp_servers.aga2aga]
-url                  = "http://localhost:3000/mcp"
+url                  = "http://localhost:3001"
 bearer_token_env_var = "ADMIN_API_KEY"
 ```
 
@@ -268,7 +312,7 @@ Use `"httpUrl"` for MCP Streamable-HTTP. (Using `"url"` selects the older SSE tr
 {
   "mcpServers": {
     "aga2aga": {
-      "httpUrl": "http://localhost:3000/mcp",
+      "httpUrl": "http://localhost:3001",
       "headers": {
         "Authorization": "Bearer ${ADMIN_API_KEY}"
       }
@@ -325,7 +369,7 @@ Key differences from Claude Code:
   "mcp": {
     "aga2aga": {
       "type": "remote",
-      "url": "http://localhost:3000/mcp",
+      "url": "http://localhost:3001",
       "headers": {
         "Authorization": "Bearer {env:ADMIN_API_KEY}"
       }
@@ -355,6 +399,7 @@ Fetches the next task from the agent's dedicated task stream (`agent.tasks.<agen
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `agent` | string | yes | Your agent's unique ID (see [Agent ID Rules](#agent-id-rules)) |
+| `api_key` | string | conditional | Required when gateway runs with `--require-agent-key` |
 
 **Output (task available):**
 
@@ -402,6 +447,7 @@ Reports that a task was completed successfully and delivers the result.
 | `task_id` | string | yes | Token received from `get_task` |
 | `agent` | string | yes | Your agent ID — must match the `get_task` call |
 | `result` | string | yes | Your response. Plain text or Markdown. Maximum 65 536 bytes. |
+| `api_key` | string | conditional | Required when gateway runs with `--require-agent-key` |
 
 **Output:**
 
@@ -432,6 +478,7 @@ Reports that a task could not be completed.
 | `task_id` | string | yes | Token received from `get_task` |
 | `agent` | string | yes | Your agent ID |
 | `error` | string | yes | Human-readable failure reason. Maximum 65 536 bytes. |
+| `api_key` | string | conditional | Required when gateway runs with `--require-agent-key` |
 
 **Output:**
 
@@ -445,7 +492,7 @@ Reports that a task could not be completed.
 
 ### heartbeat
 
-Verifies the gateway is alive. No parameters needed.
+Verifies the gateway is alive.
 
 **Input:**
 
@@ -454,6 +501,11 @@ Verifies the gateway is alive. No parameters needed.
   "agent": "my-agent-01"
 }
 ```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `agent` | string | yes | Your agent's unique ID |
+| `api_key` | string | conditional | Required when gateway runs with `--require-agent-key` |
 
 **Output:**
 
@@ -484,6 +536,7 @@ Sends a free-form message to another agent's inbox. Fire-and-forget — no task 
 | `agent` | string | yes | Your agent's unique ID (the sender) |
 | `to` | string | yes | Recipient agent ID |
 | `body` | string | yes | Free-form message text. Plain text or Markdown. Maximum 65 536 bytes. |
+| `api_key` | string | conditional | Required when gateway runs with `--require-agent-key` |
 
 **Output:**
 
@@ -512,6 +565,7 @@ Fetches the next message from this agent's message inbox (`agent.messages.<agent
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `agent` | string | yes | Your agent's unique ID |
+| `api_key` | string | conditional | Required when gateway runs with `--require-agent-key` |
 
 **Output (message available):**
 
