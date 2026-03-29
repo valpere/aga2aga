@@ -17,13 +17,15 @@ import (
 
 // MessageLogEntry carries the data captured by each gateway tool handler before
 // it is written to the persistent log by the MessageLogger implementation.
+// Direction is "send" (agent → Redis) or "receive" (Redis → agent).
+// ToolName is one of the six registered MCP tool names.
 type MessageLogEntry struct {
 	EnvelopeID string `json:"EnvelopeID"`
 	ThreadID   string `json:"ThreadID"`
 	FromAgent  string `json:"FromAgent"`
 	ToAgent    string `json:"ToAgent"`
 	MsgType    string `json:"MsgType"`
-	Direction  string `json:"Direction"` // "send" | "receive"
+	Direction  string `json:"Direction"`
 	ToolName   string `json:"ToolName"`
 	BodySize   int    `json:"BodySize"`
 	Body       string `json:"Body"`

@@ -776,6 +776,55 @@ func makeDelivery(from, msgType, body string) transport.Delivery {
 	return transport.Delivery{MsgID: "msg-1", Doc: doc}
 }
 
+func TestHandleCompleteTask_Logs(t *testing.T) {
+	trans := &mockTransport{}
+	enf := &mockEnforcer{allowed: true}
+	g, spy := newTestGatewayWithSpy(t, trans, enf)
+
+	g.pending.Store("task-1", "agent.tasks.agent-a", "redis-1")
+	in := completeTaskIn{TaskID: "task-1", Agent: "agent-a", Result: "done"}
+	_, _, err := g.handleCompleteTask(context.Background(), nil, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	entry, ok := spy.last()
+	if !ok {
+		t.Fatal("expected log entry, got none")
+	}
+	if entry.Direction != "send" {
+		t.Errorf("Direction = %q, want send", entry.Direction)
+	}
+	if entry.ToolName != "complete_task" {
+		t.Errorf("ToolName = %q, want complete_task", entry.ToolName)
+	}
+	if entry.FromAgent != "agent-a" {
+		t.Errorf("FromAgent = %q, want agent-a", entry.FromAgent)
+	}
+}
+
+func TestHandleFailTask_Logs(t *testing.T) {
+	trans := &mockTransport{}
+	enf := &mockEnforcer{allowed: true}
+	g, spy := newTestGatewayWithSpy(t, trans, enf)
+
+	g.pending.Store("task-2", "agent.tasks.agent-a", "redis-2")
+	in := failTaskIn{TaskID: "task-2", Agent: "agent-a", Error: "boom"}
+	_, _, err := g.handleFailTask(context.Background(), nil, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	entry, ok := spy.last()
+	if !ok {
+		t.Fatal("expected log entry, got none")
+	}
+	if entry.Direction != "send" {
+		t.Errorf("Direction = %q, want send", entry.Direction)
+	}
+	if entry.ToolName != "fail_task" {
+		t.Errorf("ToolName = %q, want fail_task", entry.ToolName)
+	}
+}
+
 func TestHandleGetTask_Logs(t *testing.T) {
 	ch := make(chan transport.Delivery, 1)
 	ch <- makeDelivery("orchestrator", "task.request", "do work")
