@@ -19,6 +19,16 @@ type PolicyEnforcer interface {
 	Allowed(ctx context.Context, source, target string) (bool, error)
 }
 
+// PolicyQuerier is an optional extension of PolicyEnforcer that allows an
+// agent to retrieve the policies that apply to it. Implementors that have
+// access to a PolicyStore satisfy this interface; the gateway type-asserts
+// g.enforcer.(PolicyQuerier) in the get_my_policies tool handler.
+type PolicyQuerier interface {
+	// ListPoliciesFor returns all policies where source_id == agentID,
+	// target_id == agentID, or source_id == "*" / target_id == "*".
+	ListPoliciesFor(ctx context.Context, agentID string) ([]admin.CommunicationPolicy, error)
+}
+
 // EmbeddedEnforcer evaluates policies in-process by querying a PolicyStore
 // and calling admin.Evaluate. Use this for single-node deployments where the
 // gateway and admin server share the same database.
@@ -41,6 +51,23 @@ func (e *EmbeddedEnforcer) Allowed(ctx context.Context, source, target string) (
 		return false, fmt.Errorf("gateway/policy: list policies: %w", err)
 	}
 	return admin.Evaluate(policies, source, target) == admin.PolicyActionAllow, nil
+}
+
+// ListPoliciesFor implements PolicyQuerier. It returns policies where
+// source_id or target_id matches agentID (or is the wildcard "*").
+func (e *EmbeddedEnforcer) ListPoliciesFor(ctx context.Context, agentID string) ([]admin.CommunicationPolicy, error) {
+	all, err := e.store.ListPolicies(ctx, e.orgID)
+	if err != nil {
+		return nil, fmt.Errorf("gateway/policy: list policies for %q: %w", agentID, err)
+	}
+	var out []admin.CommunicationPolicy
+	for _, p := range all {
+		if p.SourceID == agentID || p.TargetID == agentID ||
+			p.SourceID == "*" || p.TargetID == "*" {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 // maxEvaluateResponseBytes caps the admin server response body to prevent
