@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help build clean test test-integration lint validate docker docker-admin docker-images up down ps logs tidy e2e-setup e2e
+.PHONY: help build clean test test-integration lint validate docker docker-admin docker-images up-infra up down ps logs tidy e2e-setup e2e
 
 ## help: print this help message
 help:
@@ -45,7 +45,9 @@ validate:
 
 VERSION ?= $(shell git rev-parse --short HEAD)
 
-COMPOSE := docker compose -f docker-compose.local.yml
+# Load ADMIN_API_KEY and other secrets from .env.local automatically.
+# All docker compose targets use docker-compose.local.yml (ports 8087/3001/6380).
+COMPOSE := docker compose -f docker-compose.local.yml --env-file .env.local
 
 ## docker: build the gateway image tagged with git SHA and latest
 docker:
@@ -58,7 +60,11 @@ docker-admin:
 ## docker-images: build both gateway and admin images
 docker-images: docker docker-admin
 
-## up: start all services (set ADMIN_API_KEY in .env or environment)
+## up-infra: start Redis and Admin UI only (first-time setup: create ADMIN_API_KEY)
+up-infra:
+	$(COMPOSE) up -d redis admin
+
+## up: start all services (requires ADMIN_API_KEY in .env.local)
 up:
 	$(COMPOSE) up -d
 

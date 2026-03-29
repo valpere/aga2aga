@@ -36,7 +36,7 @@ This requires internet access on the first run (pulls `golang:1.25-bookworm`, `g
 ### Step 2 — Start Redis and Admin
 
 ```bash
-docker compose -f docker-compose.local.yml up -d redis admin
+make up-infra
 ```
 
 Wait ~5 seconds for the Admin healthcheck to pass:
@@ -67,15 +67,19 @@ Then:
 
 ### Step 4 — Start the Gateway
 
+Save the key to `.env.local`:
+
 ```bash
-ADMIN_API_KEY=<paste-key-here> make up
+echo "ADMIN_API_KEY=<paste-key-here>" >> .env.local
 ```
 
-Or, with a `.env` file containing `ADMIN_API_KEY` (see [Port configuration](#port-configuration)):
+Then start:
 
 ```bash
 make up
 ```
+
+`make up` loads `.env.local` automatically — no need to export the key manually.
 
 ### Step 5 — Verify everything is running
 
@@ -113,8 +117,8 @@ curl -s -o /dev/null -w '%{http_code}' \
 # Stop all services (data is preserved in the admin-data volume)
 make down
 
-# Restart — supply the same API key
-ADMIN_API_KEY=<key> make up
+# Restart — key is loaded from .env.local automatically
+make up
 ```
 
 **The Admin session cookie is invalidated on each restart** (session keys are regenerated). Log in again at http://localhost:8087 after a restart.
@@ -125,7 +129,7 @@ The API key itself persists in the SQLite database (`admin-data` Docker volume) 
 
 ## Port configuration
 
-Default ports avoid common conflicts (Open WebUI on 8080, local Redis on 6379). Override any port via environment variable or a `.env` file in the project root:
+Default ports avoid common conflicts (Open WebUI on 8080, local Redis on 6379). Override any port via `.env.local` in the project root:
 
 | Variable | Default | Service |
 |----------|---------|---------|
@@ -134,21 +138,16 @@ Default ports avoid common conflicts (Open WebUI on 8080, local Redis on 6379). 
 | `GATEWAY_PORT` | `3001` | MCP Gateway host port |
 | `ADMIN_API_KEY` | *(required)* | Gateway → Admin Bearer token |
 
-Example `.env` file:
+Example `.env.local` (gitignored — never commit this file):
 
 ```bash
-# .env  (gitignored — never commit this file)
-ADMIN_API_KEY=2a45ad1c63d55504fc5a070272c11b456dbb97b6ba53dcd81ee4d62664f196a9
+ADMIN_API_KEY=<raw-key-from-admin-ui>
 REDIS_PORT=6380
 ADMIN_PORT=8087
 GATEWAY_PORT=3001
 ```
 
-With a `.env` file, start with:
-
-```bash
-make up
-```
+All `make` targets load `.env.local` automatically.
 
 ---
 
@@ -171,13 +170,17 @@ Add to `.mcp.json` or `~/.claude/mcp_settings.json`:
 }
 ```
 
-The gateway exposes four MCP tools:
+The gateway exposes eight MCP tools:
 
 | Tool | What it does |
 |------|-------------|
 | `get_task` | Pull the next task from `agent.tasks.<agent>` Redis stream |
 | `complete_task` | Publish result to `agent.events.completed` + ACK |
 | `fail_task` | Publish failure to `agent.events.failed` + ACK |
+| `send_message` | Send a free-form message to another agent's inbox |
+| `receive_message` | Fetch the next message from this agent's inbox |
+| `get_my_limits` | Query effective resource limits for this agent |
+| `get_my_policies` | List communication policies that apply to this agent |
 | `heartbeat` | Health check — returns `{status: "ok"}` |
 
 ### Agent policies
@@ -213,10 +216,11 @@ make docker-images # build gateway + admin container images
 Bind for 127.0.0.1:8087 failed: address already in use
 ```
 
-Set a different port via env var or `.env`:
+Set a different port in `.env.local` and restart:
 
 ```bash
-ADMIN_PORT=8090 docker compose -f docker-compose.local.yml up -d admin
+echo "ADMIN_PORT=8090" >> .env.local
+make up-infra
 ```
 
 ### Admin shows "template error" page
@@ -225,7 +229,7 @@ Rebuild the admin image — you may have an older build:
 
 ```bash
 make docker-admin
-docker compose -f docker-compose.local.yml up -d --force-recreate admin
+make down && make up
 ```
 
 ### SQLite "unable to open database file: out of memory"
@@ -235,7 +239,7 @@ The `admin-data` Docker volume was created with incorrect ownership (root instea
 ```bash
 make down
 docker volume rm aga2aga_admin-data
-docker compose -f docker-compose.local.yml up -d redis admin
+make up-infra
 ```
 
 Then rebuild an API key (Step 3 above).
@@ -245,7 +249,7 @@ Then rebuild an API key (Step 3 above).
 Check logs:
 
 ```bash
-docker logs aga2aga-gateway-1
+make logs
 ```
 
 Common causes:
