@@ -1,6 +1,7 @@
 package admin_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/valpere/aga2aga/pkg/admin"
@@ -8,78 +9,68 @@ import (
 
 func TestIsValidAgentID(t *testing.T) {
 	tests := []struct {
+		name string
 		id   string
 		want bool
 	}{
 		// Valid: letters and digits
-		{"a1", true},
-		{"agent1", true},
-		{"AGENT1", true},
-		{"Agent-Alpha", true},
-		{"agent.beta", true},
-		{"agent_gamma", true},
+		{"letter+digit", "a1", true},
+		{"all lowercase", "agent1", true},
+		{"all uppercase", "AGENT1", true},
+		{"mixed case with hyphen", "Agent-Alpha", true},
+		{"dot separator", "agent.beta", true},
+		{"underscore separator", "agent_gamma", true},
 
 		// Valid: mixed separators in middle
-		{"my-agent.v2_final", true},
-		{"a-b", true},
-		{"x.y", true},
-		{"a_b", true},
+		{"mixed separators", "my-agent.v2_final", true},
+		{"hyphen only", "a-b", true},
+		{"dot only", "x.y", true},
+		{"underscore only", "a_b", true},
 
-		// Valid: exactly 2 chars (both must be alphanumeric)
-		{"ab", true},
+		// Valid: length boundaries
+		{"exactly 2 chars letters", "ab", true},
+		{"exactly 2 chars digit-first", "1a", true},
+		{"exactly 63 chars", "a" + strings.Repeat("b", 61) + "c", true},
+		{"exactly 64 chars (max)", "a" + strings.Repeat("b", 62) + "c", true},
 
 		// Invalid: 2-char strings ending with separator
-		{"a-", false},
-		{"a.", false},
-		{"a_", false},
+		{"2 chars ending hyphen", "a-", false},
+		{"2 chars ending dot", "a.", false},
+		{"2 chars ending underscore", "a_", false},
 
-		// Valid: exactly 64 chars (max)
-		{"a" + repeat62("b") + "c", true},
+		// Invalid: too short
+		{"1 char", "a", false},
 
-		// Invalid: too short (1 char)
-		{"a", false},
-
-		// Invalid: too long (65 chars)
-		{"a" + repeat63("b") + "c", false},
+		// Invalid: too long
+		{"65 chars", "a" + strings.Repeat("b", 63) + "c", false},
 
 		// Invalid: starts with separator
-		{"-agent", false},
-		{".agent", false},
-		{"_agent", false},
+		{"starts with hyphen", "-agent", false},
+		{"starts with dot", ".agent", false},
+		{"starts with underscore", "_agent", false},
 
 		// Invalid: ends with separator
-		{"agent-", false},
-		{"agent.", false},
-		{"agent_", false},
+		{"ends with hyphen", "agent-", false},
+		{"ends with dot", "agent.", false},
+		{"ends with underscore", "agent_", false},
 
 		// Invalid: empty
-		{"", false},
+		{"empty", "", false},
 
-		// Invalid: contains illegal characters
-		{"agent name", false},  // space
-		{"agent/path", false},  // slash
-		{"agent\nid", false},   // newline
-		{"agent\x00id", false}, // null byte
-		{"agent:id", false},    // colon
+		// Invalid: illegal characters (CWE-20 / CWE-74 injection chars)
+		{"contains space", "agent name", false},
+		{"contains slash", "agent/path", false},
+		{"contains newline", "agent\nid", false},
+		{"contains null byte", "agent\x00id", false},
+		{"contains colon", "agent:id", false},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.id, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			got := admin.IsValidAgentID(tt.id)
 			if got != tt.want {
 				t.Errorf("IsValidAgentID(%q) = %v, want %v", tt.id, got, tt.want)
 			}
 		})
 	}
-}
-
-func repeat62(s string) string { return repeatN(s, 62) }
-func repeat63(s string) string { return repeatN(s, 63) }
-
-func repeatN(s string, n int) string {
-	out := make([]byte, n*len(s))
-	for i := range n {
-		copy(out[i*len(s):], s)
-	}
-	return string(out)
 }
