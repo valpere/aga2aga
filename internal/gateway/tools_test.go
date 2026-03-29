@@ -800,6 +800,12 @@ func TestHandleCompleteTask_Logs(t *testing.T) {
 	if entry.FromAgent != "agent-a" {
 		t.Errorf("FromAgent = %q, want agent-a", entry.FromAgent)
 	}
+	if entry.ToAgent != "orchestrator" {
+		t.Errorf("ToAgent = %q, want orchestrator", entry.ToAgent)
+	}
+	if entry.MsgType != string(protocol.TaskResult) {
+		t.Errorf("MsgType = %q, want %q", entry.MsgType, string(protocol.TaskResult))
+	}
 }
 
 func TestHandleFailTask_Logs(t *testing.T) {
@@ -822,6 +828,15 @@ func TestHandleFailTask_Logs(t *testing.T) {
 	}
 	if entry.ToolName != "fail_task" {
 		t.Errorf("ToolName = %q, want fail_task", entry.ToolName)
+	}
+	if entry.FromAgent != "agent-a" {
+		t.Errorf("FromAgent = %q, want agent-a", entry.FromAgent)
+	}
+	if entry.ToAgent != "orchestrator" {
+		t.Errorf("ToAgent = %q, want orchestrator", entry.ToAgent)
+	}
+	if entry.MsgType != string(protocol.TaskFail) {
+		t.Errorf("MsgType = %q, want %q", entry.MsgType, string(protocol.TaskFail))
 	}
 }
 
