@@ -1,0 +1,75 @@
+{{template "layout.html" .}}
+{{define "title"}}Messages — aga2aga Admin{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h1>Message Log</h1>
+</div>
+
+<div class="card">
+  <form method="GET" action="/messages" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem">
+    <div>
+      <label>Agent ID</label><br>
+      <input type="text" name="agent" value="{{.Filter.AgentID}}" placeholder="from or to">
+    </div>
+    <div>
+      <label>Tool</label><br>
+      <select name="tool">
+        <option value="" {{if eq .Filter.ToolName ""}}selected{{end}}>All</option>
+        <option value="send_message"    {{if eq .Filter.ToolName "send_message"}}selected{{end}}>send_message</option>
+        <option value="receive_message" {{if eq .Filter.ToolName "receive_message"}}selected{{end}}>receive_message</option>
+        <option value="get_task"        {{if eq .Filter.ToolName "get_task"}}selected{{end}}>get_task</option>
+        <option value="complete_task"   {{if eq .Filter.ToolName "complete_task"}}selected{{end}}>complete_task</option>
+        <option value="fail_task"       {{if eq .Filter.ToolName "fail_task"}}selected{{end}}>fail_task</option>
+      </select>
+    </div>
+    <div>
+      <label>Since</label><br>
+      <input type="date" name="since" value="{{if not .Filter.Since.IsZero}}{{.Filter.Since.Format "2006-01-02"}}{{end}}">
+    </div>
+    <div>
+      <label>Until</label><br>
+      <input type="date" name="until" value="{{if not .Filter.Until.IsZero}}{{.Filter.Until.Format "2006-01-02"}}{{end}}">
+    </div>
+    <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+    <a href="/messages" class="btn btn-secondary btn-sm">Clear</a>
+  </form>
+
+  {{if .Logs}}
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>From</th>
+        <th>To</th>
+        <th>Type</th>
+        <th>Tool</th>
+        <th>Dir</th>
+        <th>Size</th>
+        <th>Body</th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range .Logs}}
+    <tr>
+      <td class="text-muted" style="white-space:nowrap">{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
+      <td><code>{{.FromAgent}}</code></td>
+      <td><code>{{.ToAgent}}</code></td>
+      <td class="text-muted">{{.MsgType}}</td>
+      <td><span class="badge">{{.ToolName}}</span></td>
+      <td class="text-muted">{{.Direction}}</td>
+      <td class="text-muted">{{.BodySize}}</td>
+      <td>
+        <details>
+          <summary style="cursor:pointer;color:var(--accent)">show</summary>
+          <pre style="white-space:pre-wrap;word-break:break-all;margin-top:.5rem;max-height:200px;overflow-y:auto">{{.Body}}</pre>
+        </details>
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">No message logs found.</p>
+  {{end}}
+</div>
+{{end}}
