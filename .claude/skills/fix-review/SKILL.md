@@ -93,13 +93,13 @@ If CI is pending for >5 minutes: warn and stop. Do NOT start review rounds witho
 
 **Round 1** — full PR diff:
 ```bash
-DIFF=$(gh pr diff "${PR_NUMBER}")
+DIFF=$(gh pr diff --no-color "${PR_NUMBER}")
 ```
 
 **Rounds 2-3** — delta (default) or full per `diff_scope`:
 ```bash
 DIFF=$(git diff HEAD~1)                                           # delta
-DIFF=$(gh pr diff "${PR_NUMBER}")  # full
+DIFF=$(gh pr diff --no-color "${PR_NUMBER}")  # full
 ```
 
 If `DIFF` is empty for a delta round, fall back to the full PR diff.
@@ -232,7 +232,7 @@ Before each new round, compare identifiers against the previous round.
 
 Get full current PR diff:
 ```bash
-DIFF=$(gh pr diff "${PR_NUMBER}")
+DIFF=$(gh pr diff --no-color "${PR_NUMBER}")
 ```
 
 Compile findings log for rounds 1-3: model, every item flagged, status (fixed/skipped/open).

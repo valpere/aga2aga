@@ -26,6 +26,19 @@ rest_post() {
   local auth_scheme="${4:-Bearer}"
   local timeout="${REST_TIMEOUT:-120}"
 
+  # Reject plain HTTP for non-loopback hosts to prevent credential exfiltration.
+  if [[ "$url" =~ ^http:// ]] && [[ ! "$url" =~ ^http://(localhost|127\.|\[?::1\]?)([:/]|$) ]]; then
+    echo "ERROR: refusing plain HTTP for non-loopback host in '${url}'." >&2
+    echo "       Use https:// or a localhost address." >&2
+    return 1
+  fi
+
+  # Auth header values must not contain control characters (CWE-93 header injection).
+  if [[ "$api_key" == *$'\n'* || "$api_key" == *$'\r'* || "$auth_scheme" == *$'\n'* || "$auth_scheme" == *$'\r'* ]]; then
+    echo "ERROR: auth_scheme/api_key contains illegal control characters." >&2
+    return 1
+  fi
+
   # Payload via stdin to avoid ARG_MAX limits on large PR diffs.
   local -a args=(-sS --max-time "$timeout"
     -H "Content-Type: application/json"
@@ -33,7 +46,7 @@ rest_post() {
   [ -n "$api_key" ] && args+=(-H "Authorization: ${auth_scheme} ${api_key}")
 
   local response errfile exit_code
-  errfile=$(mktemp)
+  errfile=$(mktemp) || { echo "ERROR: failed to create temp file for curl stderr" >&2; return 1; }
   response=$(printf '%s' "$payload" | curl "${args[@]}" "$url" 2>"$errfile")
   exit_code=$?
   local curl_err; curl_err=$(cat "$errfile"); rm -f "$errfile"

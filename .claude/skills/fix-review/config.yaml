@@ -7,7 +7,7 @@
 #
 # To switch provider: "switch fix-review to ollama" or edit directly.
 
-provider: openrouter
+provider: ollama
 
 # ---------------------------------------------------------------------------
 # Reviewer models per provider

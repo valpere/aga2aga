@@ -19,6 +19,11 @@ load_env_key() {
   local key="$1"
   local explicit_file="${2:-}"
 
+  if [[ ! "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    echo "ERROR: Invalid key name '${key}' — must match [A-Za-z_][A-Za-z0-9_]*" >&2
+    return 1
+  fi
+
   _lvk_extract() {
     local k="$1" f="$2"
     grep "^${k}=" "$f" 2>/dev/null \
