@@ -27,7 +27,7 @@ rest_post() {
   local timeout="${REST_TIMEOUT:-120}"
 
   # Reject plain HTTP for non-loopback hosts to prevent credential exfiltration.
-  if [[ "$url" =~ ^http:// ]] && [[ ! "$url" =~ ^http://(localhost|127\.|\[?::1\]?)([:/]|$) ]]; then
+  if [[ "$url" =~ ^http:// ]] && [[ ! "$url" =~ ^http://(localhost|127\.|::1) ]]; then
     echo "ERROR: refusing plain HTTP for non-loopback host in '${url}'." >&2
     echo "       Use https:// or a localhost address." >&2
     return 1
