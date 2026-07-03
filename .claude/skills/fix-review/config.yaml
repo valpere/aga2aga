@@ -29,7 +29,7 @@ reviewers:
     round_2:
       model: minimax-m2.5:cloud                 # MiniMax — RL-trained, 198K ctx
     round_3:
-      model: devstral-2:123b-cloud              # Mistral — codebase explorer, 256K ctx
+      model: mistral-large-3:675b-cloud         # Mistral — codebase explorer, 256K ctx
 
 # ---------------------------------------------------------------------------
 # Arbiter (Round 4)
