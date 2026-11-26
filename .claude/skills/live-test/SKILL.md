@@ -1,3 +1,13 @@
+---
+name: live-test
+description: "Interactive browser testing session against the aga2aga Admin UI with an issue log and session report. Use when manually exercising the admin UI in a live browser or generating a live-test report. Usage: /live-test [url|report]"
+metadata:
+  version: "1.0.0"
+  domain: gateway
+  triggers: live-test, admin ui, browser test
+  scope: testing
+---
+
 # Skill: /live-test
 # aga2aga — Interactive Admin UI Testing
 

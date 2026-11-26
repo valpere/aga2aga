@@ -151,9 +151,22 @@ Git diff:
 ---
 ```
 
-Parse response as JSON. If parse fails, retry once with:
+Build the prompt with plain bash substitution, never `sed` — `sed` breaks on
+newlines or `|` in the diff and leaves the prompt empty (the quoted replacement
+keeps `&` literal, bash 5.2):
+```bash
+PROMPT="${PROMPT_TEMPLATE//\{DIFF\}/"$DIFF"}"
+```
+
+Parse response as JSON (strip code fences first). If parse fails, retry once with:
 `"Your previous response was not valid JSON. Return ONLY the JSON array, no other text."`
-If second failure: skip this reviewer and note in summary.
+If the second answer is still not a valid JSON array, **do not drop the
+answers**: save every non-empty invalid attempt to `round_{N}.unparsed.txt` in
+the run's temp dir (append, attempt 1 then 2, each under a `--- attempt K ---`
+line — an empty retry must not discard attempt 1), treat the
+round as 0 parsed findings for Steps 3–7, and let the Arbiter carry its findings
+over (Step 8). Empty content = 0 findings, nothing to keep. Don't repair the
+JSON with regexes. Note every unparsed round in the final summary.
 
 If zero items: `"No issues found by {model} in round {N}. Nothing to fix."` → proceed to Step 6.
 
@@ -204,7 +217,7 @@ git commit -m "fix(pr#{number}): address review comments — round {N}
 
 {bullet list of what was fixed}
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+<attribution line from the current session's instructions>"
 git push
 ```
 
@@ -237,6 +250,10 @@ DIFF=$(gh pr diff --color=never "${PR_NUMBER}")
 
 Compile findings log for rounds 1-3: model, every item flagged, status (fixed/skipped/open).
 
+**Unparsed rounds:** for each `round_{N}.unparsed.txt`, read the model's raw
+answer and carry its findings over by hand as open items of that round (same
+file+line dedupe). Record in the summary whether it was carried over.
+
 For each still-open item, rule:
 
 | Ruling | Meaning | Action |
@@ -260,7 +277,7 @@ git commit -m "fix(pr#{number}): arbiter round — confirm, escalate, and indepe
 
 {bullet list: confirmed | escalated | new | dismissed}
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+<attribution line from the current session's instructions>"
 git push
 ```
 
@@ -325,7 +342,7 @@ STATE=$(gh pr view {number} --repo valpere/aga2aga --json state --jq '.state')
 [ "$STATE" != "MERGED" ] && echo "WARNING: PR not yet merged after 5 minutes — check GitHub Actions"
 ```
 
-After confirmed merge, pull main and print final summary table: fixed / escalated / dismissed / deferred / skipped.
+After confirmed merge, pull main and print final summary table: fixed / escalated / dismissed / deferred / skipped, plus an `Unparsed:` line — rounds whose answer went to `round_{N}.unparsed.txt` (e.g. `round 2 (minimax-m3:cloud) — carried over by arbiter`) or `none`.
 
 ```bash
 git checkout main && git pull
@@ -343,7 +360,7 @@ git checkout main && git pull
 6. **DO_NOT_TOUCH conflicts** — skip and surface to user
 7. **One commit per round** — batch all fixes
 8. **Tests must pass before pushing** — revert breaking fix, continue
-9. **JSON parse failure** — retry once, skip reviewer on second failure
+9. **JSON parse failure** — retry once; on second failure keep the raw answer in `round_{N}.unparsed.txt` for the Arbiter (never silently drop it)
 10. **Provider switch is permanent** — `sed` into config.yaml immediately
 11. **Arbiter always runs** — even if all 3 model rounds stop early
 12. **CI must pass before review rounds** — never start Round 1 with failing checks; fix CI first, then start reviews

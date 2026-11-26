@@ -27,9 +27,9 @@ reviewers:
     round_1:
       model: kimi-k2.6:cloud                    # Moonshot AI — strong architecture + 128K ctx
     round_2:
-      model: minimax-m2.7:cloud                 # MiniMax — RL-trained, 198K ctx
+      model: minimax-m3:cloud                   # MiniMax — RL-trained
     round_3:
-      model: mistral-large-3:675b-cloud         # Mistral — codebase explorer, 256K ctx
+      model: mistral-large-4:cloud              # Mistral — codebase explorer
 
 # ---------------------------------------------------------------------------
 # Arbiter (Round 4)
