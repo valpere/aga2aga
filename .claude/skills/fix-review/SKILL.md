@@ -160,8 +160,10 @@ PROMPT="${PROMPT_TEMPLATE//\{DIFF\}/"$DIFF"}"
 
 Parse response as JSON (strip code fences first). If parse fails, retry once with:
 `"Your previous response was not valid JSON. Return ONLY the JSON array, no other text."`
-If the second answer is still not a valid JSON array but is non-empty, **do not
-drop it**: save it as `round_{N}.unparsed.txt` in the run's temp dir, treat the
+If the second answer is still not a valid JSON array, **do not drop the
+answers**: save every non-empty invalid attempt to `round_{N}.unparsed.txt` in
+the run's temp dir (append, attempt 1 then 2, each under a `--- attempt K ---`
+line — an empty retry must not discard attempt 1), treat the
 round as 0 parsed findings for Steps 3–7, and let the Arbiter carry its findings
 over (Step 8). Empty content = 0 findings, nothing to keep. Don't repair the
 JSON with regexes. Note every unparsed round in the final summary.
